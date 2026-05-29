@@ -1588,7 +1588,7 @@ body {
 // ==========================================
 // GLOBAL STATE
 // ==========================================
-const APP_VERSION = 'Informe-Tecnico-v2.0.19';
+const APP_VERSION = 'Informe-Tecnico-v2.0.20';
 let allActivities = [];  
 let activities = [];     
 let voluntariosActivos = [];
@@ -2676,9 +2676,8 @@ function initProfileSystem() {
         currentUser = null;
     }
     
-    // Use unified save instead of saveProfiles()
+    
     unifiedSave();
-    renderProfileSelector();
     actualizarListavoluntarios();
     updateActivevoluntariosChart();
     
@@ -6498,7 +6497,7 @@ async function unifiedLoad() {
                 const savedActivities = localStorage.getItem(`activities_${monthKey}`);
                 if (savedActivities) {
                     activities = JSON.parse(savedActivities);
-                    allActivities = activities; // Fallback
+                    allActivities = activities;
                 } else {
                     activities = [];
                     allActivities = [];
@@ -6543,11 +6542,14 @@ async function unifiedLoad() {
             if (document.getElementById('impactText')) document.getElementById('impactText').value = desc.impact || '';
         } catch(e) {}
     }
-    // At the end of unifiedLoad()
+    
+    // Render everything after data is loaded
     if (typeof renderActivities === 'function') renderActivities();
     if (typeof initProfileSystem === 'function') initProfileSystem();
+    if (typeof renderProfileSelector === 'function') renderProfileSelector();  // ADDED
     if (typeof updateCharts === 'function') updateCharts();
     if (typeof updateGlobalKPIs === 'function') updateGlobalKPIs();
+    
     console.log('✅ Load complete - my activities:', activities.length, 'all activities:', allActivities.length);
 }
 
