@@ -1453,19 +1453,20 @@ body {
         <div class="kpi-item">
             <div class="kpi-label">⏱️ Total Horas</div>
             <div class="kpi-value" id="totalHoras">0</div>
-            <div>
-                <span style="color: var(--text-medium);">🏢 Virtual:</span>
-                <span id="totalHorasFilial" style="font-weight: 600; color: var(--primary-dark);">0</span>
-            </div>
-            <div>
-                <span style="color: var(--text-medium);">🌐 Campo:</span>
-                <span id="totalHorasCampo" style="font-weight: 600; color: var(--primary-dark);">0</span>
-            </div>
+            
         </div>
         <div class="kpi-item">
             <div class="kpi-label">📋 Actividades</div>
             <div class="kpi-value" id="totalActividades">0</div>
         </div>
+        <div class="gender-breakdown">
+                <span class="gender-f">🏢 Virtual:</span>
+                <span id="totalHorasFilial" class="gender-f">0</span>
+            </div>
+            <div class="gender-breakdown">
+                <span class="gender-m">🌐 Campo:</span>
+                <span id="totalHorasCampo" class="gender-m">0</span>
+            </div>
     </div>
 
     <!-- Profile Selector -->
@@ -1588,7 +1589,7 @@ body {
 // ==========================================
 // GLOBAL STATE
 // ==========================================
-const APP_VERSION = 'Informe-Tecnico-v2.0.16';
+const APP_VERSION = 'Informe-Tecnico-v2.0.17';
 let allActivities = [];  
 let activities = [];     
 let voluntariosActivos = [];
