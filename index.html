@@ -1591,7 +1591,7 @@ body {
 // ==========================================
 // GLOBAL STATE
 // ==========================================
-const APP_VERSION = 'Informe-Tecnico-v2.0.13';
+const APP_VERSION = 'Informe-Tecnico-v2.0.14';
 let allActivities = [];  
 let activities = [];     
 let voluntariosActivos = [];
@@ -1919,6 +1919,21 @@ function updateGlobalKPIs() {
                 uniqueReporters.add(reporterId);
             }
         });
+    } else if (typeof activities !== 'undefined' && activities.length > 0) {
+        // Fallback to activities if allActivities is empty
+        activities.forEach(activity => {
+            if (activity.createdBy) {
+                let reporterId = activity.createdBy;
+                if (reporterId.includes('-')) {
+                    const parts = reporterId.split('-');
+                    const lastPart = parts[parts.length - 1];
+                    if (lastPart && lastPart.length === 6 && /^\d+$/.test(lastPart)) {
+                        reporterId = lastPart;
+                    }
+                }
+                uniqueReporters.add(reporterId);
+            }
+        });
     }
     
     // For personalized KPIs - use filtered activities (user's own data)
@@ -1949,7 +1964,7 @@ function updateGlobalKPIs() {
         });
     }
     
-    // Update DOM elements
+    // Update DOM elements (with fallback to 0 if no data)
     const totalHorasEl = document.getElementById('totalHoras');
     const totalHorasFilialEl = document.getElementById('totalHorasFilial');
     const totalHorasCampoEl = document.getElementById('totalHorasCampo');
@@ -6546,7 +6561,11 @@ async function unifiedLoad() {
             if (document.getElementById('impactText')) document.getElementById('impactText').value = desc.impact || '';
         } catch(e) {}
     }
-    
+    // At the end of unifiedLoad()
+    if (typeof renderActivities === 'function') renderActivities();
+    if (typeof initProfileSystem === 'function') initProfileSystem();
+    if (typeof updateCharts === 'function') updateCharts();
+    if (typeof updateGlobalKPIs === 'function') updateGlobalKPIs();
     console.log('✅ Load complete - my activities:', activities.length, 'all activities:', allActivities.length);
 }
 
@@ -6587,9 +6606,8 @@ function deleteActivity(idx) {
         }, 100);
     }
 }
-
 // ==========================================
-// FIXED DOMContentLoaded
+// DOMContentLoaded
 // ==========================================
 
 // Helper function to check if current user participated in an activity
@@ -6616,99 +6634,18 @@ function isCurrentUserInActivity(activity, currentUser) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // First, load all data from localStorage
-    unifiedLoad();
-    
-    // ==========================================
-    // ALWAYS SYNC WITH BACKEND - MERGE DATA (PRESERVES LOCAL)
-    // Uses same logic as HTML page (contributingVolunteers)
-    // ==========================================
-    const monthKey = getCurrentMonthKey();
-    
-    // Only sync if we have a current user
-    if (currentUser && currentUser.identidadSuffix) {
-        console.log('📡 Syncing with backend for user:', currentUser.identidadSuffix);
-        
-        try {
-            // Fetch BOTH activities and dashboard data (like HTML page does)
-            const [activitiesResponse, dashboardResponse] = await Promise.all([
-                fetch('https://api.contranormdigital.com/api/tecno-civico/activities'),
-                fetch('https://api.contranormdigital.com/api/tecno-civico/dashboard')
-            ]);
-            
-            if (activitiesResponse.ok && dashboardResponse.ok) {
-                const activitiesData = await activitiesResponse.json();
-                const dashboardData = await dashboardResponse.json();
-                const allActivities = activitiesData.activities || [];
-                const consolidatedVolunteers = dashboardData.volunteers || {};
-                
-                // Get the consolidated hours for this user (what HTML page shows)
-                const userConsolidated = consolidatedVolunteers[currentUser.identidadSuffix];
-                const consolidatedHours = userConsolidated?.hours || 0;
-                
-                // Filter activities using contributingVolunteers (same logic as backend)
-                const backendActivities = allActivities.filter(activity => {
-                    if (activity.contributingVolunteers && activity.contributingVolunteers.includes(currentUser.identidadSuffix)) {
-                        return true;
-                    }
-                    return false;
-                });
-                
-                // MERGE with local activities (preserve user's local data)
-                const existingActivityIds = new Set(activities.map(a => a.id));
-                let newActivitiesAdded = 0;
-                
-                backendActivities.forEach(backendAct => {
-                    if (!existingActivityIds.has(backendAct.id)) {
-                        activities.push(backendAct);
-                        newActivitiesAdded++;
-                        console.log(`➕ Added backend activity: ${backendAct.name} (${backendAct.date})`);
-                    }
-                });
-                
-                if (newActivitiesAdded > 0 || backendActivities.length > 0) {
-                    // Save merged data
-                    localStorage.setItem(`activities_${monthKey}`, JSON.stringify(activities));
-                    localStorage.setItem('activities_backup', JSON.stringify(activities));
-                    console.log(`✅ Sync complete: ${activities.length} total activities (${newActivitiesAdded} new, ${backendActivities.length} from backend, ${consolidatedHours.toFixed(2)} consolidated hours)`);
-                    
-                    // Update the totalHoras display to match consolidated hours (like HTML page)
-                    const totalHorasEl = document.getElementById('totalHoras');
-                    if (totalHorasEl) {
-                        totalHorasEl.innerText = consolidatedHours.toFixed(2);
-                    }
-                } else if (consolidatedHours > 0) {
-                    // No new activities, but user has consolidated hours
-                    console.log(`📊 User has ${consolidatedHours.toFixed(2)} consolidated hours (no new activities to add)`);
-                    const totalHorasEl = document.getElementById('totalHoras');
-                    if (totalHorasEl) {
-                        totalHorasEl.innerText = consolidatedHours.toFixed(2);
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('❌ Failed to sync with backend:', error);
-        }
-    }
+    // First, load all data from backend and localStorage (includes all rendering)
+    await unifiedLoad();
     
     // Check month change after loading
     await checkAndHandleMonthChange();
     
     updatePendingPhotoStatus();
     
-    // Ensure activities is defined
+    // Ensure activities is defined (safety check)
     if (typeof activities === 'undefined') {
         activities = [];
     }
-    
-    // Sort activities
-    if (typeof sortActivitiesByDate === 'function') sortActivitiesByDate();
-    
-    // Render everything
-    if (typeof renderActivities === 'function') renderActivities();
-    if (typeof initProfileSystem === 'function') initProfileSystem();
-    if (typeof updateCharts === 'function') updateCharts();
-    if (typeof updateGlobalKPIs === 'function') updateGlobalKPIs();
     
     // Clear wizard state on page load
     localStorage.removeItem('wizardFullState');
@@ -6760,7 +6697,6 @@ window.addEventListener('beforeunload', () => {
 setInterval(() => {
     unifiedSave();
 }, 30000);
-
 
 //======USER REPORTS==
 async function exportToExcel(event) {
