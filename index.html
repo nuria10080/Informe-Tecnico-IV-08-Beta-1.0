@@ -1588,7 +1588,7 @@ body {
 // ==========================================
 // GLOBAL STATE
 // ==========================================
-const APP_VERSION = 'Informe-Tecnico-v2.0.24';
+const APP_VERSION = 'Informe-Tecnico-v2.0.25';
 let allActivities = [];  
 let activities = [];     
 let voluntariosActivos = [];
@@ -2730,7 +2730,7 @@ function renderProfileSelector() {
     VoluntarioProfiles.forEach(profile => {
         const option = document.createElement('option');
         option.value = profile.id;
-        const hoursDisplay = (profile.totalHoras || 0).toFixed(2);
+        const hoursDisplay = calculateProfileHoursFromActivities(profile).toFixed(2);
         
         // Extract suffix directly from profile or ID
         let displaySuffix = profile.identidadSuffix;
