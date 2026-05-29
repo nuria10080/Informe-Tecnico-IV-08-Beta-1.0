@@ -12,7 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-<script src="volunteer-inscribir.js"></script>
+
 <script>
     // Force load jsQR with proper error handling
     window.jsQRLoaded = false;
@@ -1588,7 +1588,7 @@ body {
 // ==========================================
 // GLOBAL STATE
 // ==========================================
-const APP_VERSION = 'Informe-Tecnico-v2.0.23';
+const APP_VERSION = 'Informe-Tecnico-v2.0.24';
 let allActivities = [];  
 let activities = [];     
 let voluntariosActivos = [];
@@ -3225,7 +3225,171 @@ function resetWizardState() {
     
     console.log('✅ Wizard state reset completely');
 }
-
+function showAddVoluntarioModal() {
+    // Create modal overlay
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background: white; border-radius: 24px; padding: 24px; width: 90%; max-width: 400px;">
+            <h3 style="margin: 0 0 20px 0; color: var(--primary);">📝 Crear Perfil de Voluntaria</h3>
+            
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Nombre completo</label>
+                <input type="text" id="modalVolunteerName" class="wizard-input" placeholder="Ej: María González" style="width: 100%;">
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Últimos 6 dígitos de identidad</label>
+                <input type="text" id="modalVolunteerId" class="wizard-input" placeholder="Ej: 123456" maxlength="6" style="width: 100%;">
+                <small style="color: var(--text-medium);">Si tienes un código especial, se asignará automáticamente</small>
+            </div>
+            
+            <div style="margin-bottom: 16px;" id="roleSelectContainer">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Rol</label>
+                <select id="modalRoleSelect" class="wizard-input" style="width: 100%;">
+                    <option value="">-- Seleccionar rol --</option>
+                    ${rolesDisponibles.map(r => `<option value="${r.id}">${r.nombre}</option>`).join('')}
+                </select>
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Estado</label>
+                <select id="modalStatusSelect" class="wizard-input" style="width: 100%;">
+                    <option value="A">Activo</option>
+                    <option value="ACO">Activo con Observaciones</option>
+                    <option value="JD">JD - Junta Directiva</option>
+                </select>
+            </div>
+            
+            <div style="display: flex; gap: 12px; margin-top: 24px;">
+                <button id="modalCancelBtn" style="flex:1; padding: 12px; border: 2px solid var(--neutral-border); background: white; border-radius: 12px; cursor: pointer;">Cancelar</button>
+                <button id="modalCreateBtn" style="flex:1; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600;">Crear Perfil</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    const nameInput = modal.querySelector('#modalVolunteerName');
+    const idInput = modal.querySelector('#modalVolunteerId');
+    const roleSelect = modal.querySelector('#modalRoleSelect');
+    const roleContainer = modal.querySelector('#roleSelectContainer');
+    const statusSelect = modal.querySelector('#modalStatusSelect');
+    const createBtn = modal.querySelector('#modalCreateBtn');
+    const cancelBtn = modal.querySelector('#modalCancelBtn');
+    
+    // Hide role dropdown for special IDs
+    idInput.addEventListener('input', () => {
+        const id = idInput.value;
+        if (id === '800744' || id === '900331' || id === '300281') {
+            roleContainer.style.display = 'none';
+        } else {
+            roleContainer.style.display = 'block';
+        }
+    });
+    
+    createBtn.onclick = () => {
+        const name = nameInput.value.trim();
+        const identidad = idInput.value.trim();
+        
+        if (!name) {
+            alert('❌ Por favor ingresa tu nombre completo');
+            return;
+        }
+        if (!identidad || identidad.length !== 6) {
+            alert('❌ Por favor ingresa los 6 dígitos de identidad');
+            return;
+        }
+        
+        // Check if profile already exists
+        const existing = VoluntarioProfiles.find(p => p.identidadSuffix === identidad);
+        if (existing) {
+            alert(`❌ Ya existe un perfil con el código ${identidad}`);
+            return;
+        }
+        
+        let rolNombre = '';
+        let rolId = '';
+        
+        // Auto-assign for special IDs
+        if (identidad === '800744') {
+            rolNombre = 'Subdirectora';
+            rolId = 'subdirectora';
+        } else if (identidad === '900331') {
+            rolNombre = 'Coordinadora Ferias Cívicas';
+            rolId = 'coord_eventos';
+        } else if (identidad === '300281') {
+            rolNombre = 'Técnico Auxiliar';
+            rolId = 'coord_observacion';
+        } else {
+            // Get selected role from dropdown
+            const selectedRoleId = roleSelect.value;
+            if (!selectedRoleId) {
+                alert('❌ Por favor selecciona un rol');
+                return;
+            }
+            const selectedRole = rolesDisponibles.find(r => r.id === selectedRoleId);
+            rolNombre = selectedRole.nombre;
+            rolId = selectedRole.id;
+        }
+        
+        const finalStatus = statusSelect.value;
+        
+        const newProfile = {
+            id: `Voluntario-${Date.now()}-${identidad}`,
+            name: name,
+            identidadSuffix: identidad,
+            rolNombre: rolNombre,
+            rolId: rolId,
+            totalHoras: 0,
+            actividadesCount: 0,
+            isPlaceholder: false,
+            mergedFrom: [],
+            status: finalStatus
+        };
+        
+        VoluntarioProfiles.push(newProfile);
+        saveProfiles();
+        renderProfileSelector();
+        actualizarListavoluntarios();
+        updateActivevoluntariosChart();
+        
+        // Auto-select this new user as current user
+        currentUser = newProfile;
+        renderProfileSelector();
+        
+        // Save current user to localStorage
+        const monthKey = getCurrentMonthKey();
+        localStorage.setItem(`currentUser_${monthKey}`, currentUser.id);
+        
+        alert(`✅ Perfil creado: ${name}\n🎭 Rol: ${rolNombre}\n🆔 ID: ${identidad}\n📊 Estado: ${finalStatus}`);
+        
+        modal.remove();
+    };
+    
+    cancelBtn.onclick = () => {
+        modal.remove();
+    };
+    
+    // Close modal when clicking outside
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    };
+}
 function openActivityWizard() {
     // COMPLETELY RESET EVERYTHING
     wizardStep = 1;
@@ -6691,515 +6855,7 @@ setInterval(() => {
     unifiedSave();
 }, 30000);
 
-//======USER REPORTS==
-async function exportToExcel(event) {
-    if (event) event.preventDefault();
-    
-    const allowedRoles = ['Subdirectora', 'Directora', 'Presidenta', 'Presidente', 'Fiscal', 'Secretario', 'Secretaria'];
-    const userRole = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.rolNombre : '';
-    
-    if (!allowedRoles.includes(userRole)) {
-        alert('Acceso denegado. Solo las personas autorizadas pueden exportar el informe mensual completo.\n\nSi eres voluntaria, usa el boton "Registro de Horas" para exportar tu reporte individual.');
-        return;
-    }
 
-    showWizardLoading('Generando informe mensual...', 'Obteniendo datos consolidados del servidor');
-    
-    try {
-        const response = await fetch(`https://api.contranormdigital.com/api/tecno-civico/volunteers/consolidated/informe-tecnico/${currentUser.identidadSuffix}`);
-        
-        if (!response.ok) {
-            throw new Error('No se pudieron obtener datos del servidor');
-        }
-        
-        const result = await response.json();
-        
-        if (!result.success) {
-            throw new Error(result.error);
-        }
-        
-        hideWizardLoading();
-        
-        const data = result.data;
-        const excelData = [];
-        
-        // Header
-        excelData.push(["Comite Tecno-Civico"]);
-        excelData.push(["Iniciativa de Voluntariado | IV-08"]);
-        excelData.push(["Honduras"]);
-        excelData.push([]);
-        excelData.push(["INFORME TECNICO MENSUAL"]);
-        excelData.push([`Mes de Referencia: ${data.month}`]);
-        excelData.push([`Fecha de Emision: ${data.generatedAt}`]);
-        excelData.push([`Total de Actividades: ${data.totalActivities}`]);
-        excelData.push([`Total de Voluntarios Activos: ${data.totalVolunteers}`]);
-        excelData.push([]);
-        
-        // Resumen Ejecutivo
-        excelData.push(["RESUMEN EJECUTIVO"]);
-        excelData.push(["Indicador", "Valor"]);
-        excelData.push(["Total de Voluntarios Activos:", data.totalVolunteers]);
-        excelData.push(["Total de Horas de Servicio:", data.totalHours]);
-        excelData.push(["Total de Actividades Realizadas:", data.totalActivities]);
-        excelData.push(["Total de Beneficiarios:", data.totalBeneficiaries.total]);
-        excelData.push([]);
-        
-        // Feedback
-        const scopeText = document.getElementById('scopeText')?.value || '';
-        const difficultiesText = document.getElementById('difficultiesText')?.value || '';
-        const recommendationsText = document.getElementById('recommendationsText')?.value || '';
-        const impactText = document.getElementById('impactText')?.value || '';
-        
-        excelData.push(["RETROALIMENTACION DEL EQUIPO"]);
-        excelData.push([]);
-        excelData.push(["Alcance / Scope:", scopeText || "No registrado"]);
-        excelData.push(["Dificultades:", difficultiesText || "No registrado"]);
-        excelData.push(["Recomendaciones:", recommendationsText || "No registrado"]);
-        excelData.push(["Impacto:", impactText || "No registrado"]);
-        excelData.push([]);
-        
-        // Activities
-        excelData.push(["ACTIVIDADES REALIZADAS"]);
-        excelData.push([]);
-        excelData.push(["N°", "FECHA", "ACTIVIDAD", "REPORTADO POR", "BENEFICIARIOS", "", "HORAS"]);
-        excelData.push(["", "", "", "", "Hombres", "Mujeres", ""]);
-        
-        data.activities.forEach(activity => {
-            excelData.push([
-                activity.number,
-                activity.date,
-                activity.name,
-                activity.reportedByName,
-                activity.beneficiariesMen,
-                activity.beneficiariesWomen,
-                activity.hours.toFixed(2)
-            ]);
-        });
-        
-        excelData.push(["", "TOTALES", "", "", data.totalBeneficiaries.men, data.totalBeneficiaries.women, data.totalHours]);
-        excelData.push([]);
-        
-        // Summary
-        excelData.push(["RESUMEN DEL MES"]);
-        excelData.push(["Beneficiarios Hombres:", data.totalBeneficiaries.men]);
-        excelData.push(["Beneficiarios Mujeres:", data.totalBeneficiaries.women]);
-        excelData.push(["Total Beneficiarios:", data.totalBeneficiaries.total]);
-        excelData.push([]);
-        excelData.push(["VOLUNTARIOS POR GENERO"]);
-        excelData.push(["Voluntarios Hombres:", data.volunteersByGender.men]);
-        excelData.push(["Voluntarios Mujeres:", data.volunteersByGender.women]);
-        excelData.push(["Total Voluntarios:", data.totalVolunteers]);
-        excelData.push([]);
-        excelData.push(["Total Horas de Servicio:", data.totalHours]);
-        excelData.push([]);
-        
-        // Active Volunteers
-        excelData.push(["VOLUNTARIOS ACTIVOS"]);
-        excelData.push(["ID", "NOMBRE", "ROL", "GENERO", "HORAS", "ACTIVIDADES"]);
-        
-        data.activeVolunteers.forEach(volunteer => {
-            excelData.push([
-                volunteer.id,
-                volunteer.name,
-                volunteer.role,
-                volunteer.gender,
-                volunteer.hours,
-                volunteer.activities
-            ]);
-        });
-        
-        excelData.push([]);
-        
-        // External Collaborators
-        excelData.push(["COLABORADORES EXTERNOS & UNIDADES INTERNOS"]);
-        excelData.push(["ACTIVIDAD", "INSTITUCION", "REPRESENTANTE", "CARGO"]);
-        
-        if (data.externalCollaborators && data.externalCollaborators.length > 0) {
-            data.externalCollaborators.forEach(col => {
-                excelData.push([
-                    col.activity,
-                    col.institution,
-                    col.representative,
-                    col.position
-                ]);
-            });
-        } else {
-            excelData.push(["No Hay Colaboradores Externos Registrados", "", "", ""]);
-        }
-        excelData.push([]);
-        
-        // Consejo General
-        excelData.push([]);
-        excelData.push(["CONSEJO GENERAL"]);
-        excelData.push(["Comite Tecno-Civico"]);
-        excelData.push([]);
-        excelData.push(["CARGO", "NOMBRE", "TELEFONO", "FECHA DE ELECCION", "HORAS REPORTADAS"]);
-        excelData.push(["Presidente/a:", "_________________", "_______________", "_______________", "_________"]);
-        excelData.push(["Supervision Interna:", "_________________", "_______________", "_______________", "_________"]);
-        excelData.push(["Directora:", "_________________", "_______________", "_______________", "_________"]);
-        excelData.push(["Subdirectora:", "_________________", "_______________", "_______________", "_________"]);
-        excelData.push(["Coordinador/a de Voluntariado:", "_________________", "_______________", "_______________", "_________"]);
-        excelData.push(["Gestor/a de Articulacion Interinstitucional:", "_________________", "_______________", "_______________", "_________"]);
-        excelData.push([]);
-        excelData.push(["NOTA: Si un cargo no tiene titular asignado, se designa automaticamente un Supervisor Interno (Comite Organizador)."]);
-        excelData.push([]);
-        
-        // Footer
-        excelData.push([]);
-        excelData.push(["DOCUMENTO GENERADO AUTOMATICAMENTE"]);
-        excelData.push([`Este documento se genera automaticamente conforme a los registros administrados por el Comite Tecno Civico, IV-08 y se actualiza en tiempo real a traves del sistema de consolidacion y validacion.`]);
-        excelData.push([`Fecha y Hora de Emision (HONDURAS): ${data.generatedAt}`]);
-        excelData.push([`Generado por: ${data.generatedBy}`]);
-        excelData.push([`Sitio web oficial: https://tecno-civico.org`]);
-        excelData.push([`Sistema de Trazabilidad, Control y Monitoreo Descentralizado | (${data.totalActivities} Actividades Verificadas)`]);
-        
-        const ws = XLSX.utils.aoa_to_sheet(excelData);
-        
-        ws['!pageSetup'] = {
-            paperSize: 9,
-            orientation: 'landscape',
-            fitToPage: true,
-            fitToWidth: 1,
-            fitToHeight: 0
-        };
-        
-        ws['!cols'] = [
-            { wch: 6 },
-            { wch: 12 },
-            { wch: 30 },
-            { wch: 20 },
-            { wch: 12 },
-            { wch: 12 },
-            { wch: 10 }
-        ];
-        
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Informe Tecnico");
-        
-        const fileName = `Informe-Tecnico-${data.generatedAt.replace(/ /g, '-').replace(/:/g, '')}.xlsx`;
-        XLSX.writeFile(wb, fileName);
-        
-        alert(`Informe generado correctamente\nTotal: ${data.totalActivities} actividades | ${data.totalHours} horas | ${data.totalBeneficiaries.total} beneficiarios`);
-        
-    } catch (error) {
-        console.error('Error generating monthly report:', error);
-        hideWizardLoading();
-        alert(`Error al generar el informe: ${error.message}`);
-    }
-}
-
-async function exportUserReport(user) {
-    if (!user || !user.identidadSuffix) {
-        alert('No hay usuario seleccionado o falta ID');
-        return;
-    }
-    
-    showWizardLoading('Generando reporte consolidado...', 'Obteniendo datos del servidor');
-    
-    try {
-        const response = await fetch(`https://api.contranormdigital.com/api/tecno-civico/volunteers/consolidated/informe-tecnico/${user.identidadSuffix}`);
-        
-        if (!response.ok) {
-            throw new Error('No se pudo obtener datos del servidor');
-        }
-        
-        const result = await response.json();
-        
-        if (!result.success) {
-            throw new Error(result.error);
-        }
-        
-        hideWizardLoading();
-        
-        const data = result.data;
-        const now = new Date();
-        const hondurasDateTime = formatDateForDisplay(now, true);
-        
-        const excelData = [];
-        
-        // Header
-        excelData.push(["Comite Tecno-Civico"]);
-        excelData.push(["Iniciativa de Voluntariado | IV-08"]);
-        excelData.push(["HONDURAS"]);
-        excelData.push([]);
-        excelData.push(["INFORME INDIVIDUAL DE VOLUNTARIO/A"]);
-        excelData.push([`Tipo: REPORTE CONSOLIDADO (incluye cuando otros te reportaron)`]);
-        excelData.push([`DOCUMENTO VERIFICABLE POR TERCEROS`]);
-        excelData.push([`Periodo: ${data.month}`]);
-        excelData.push([`Reporte Generado: ${hondurasDateTime}`]);
-        excelData.push([]);
-        
-        // Volunteer data
-        excelData.push(["DATOS DE LA VOLUNTARIO/A"]);
-        excelData.push(["Nombre:", user.name]);
-        excelData.push(["ID:", user.identidadSuffix]);
-        excelData.push(["Rol:", user.rolNombre]);
-        excelData.push(["Telefono:", "_________________"]);
-        excelData.push(["Total Horas:", data.totalHours]);
-        excelData.push(["Total Actividades:", data.totalActivities]);
-        excelData.push([]);
-        excelData.push(["Actividades que reportaste:", data.activitiesReported]);
-        excelData.push(["Actividades donde otros te reportaron:", data.activitiesParticipated]);
-        excelData.push([]);
-        
-        // Activities
-        excelData.push(["DETALLE DE ACTIVIDADES"]);
-        excelData.push([]);
-        excelData.push(["N°", "FECHA", "ACTIVIDAD", "ROL", "BENEFICIARIAS", "BENEFICIARIOS", "HORAS"]);
-        
-        data.activities.forEach((activity, index) => {
-            excelData.push([
-                index + 1,
-                activity.date,
-                activity.name,
-                activity.role,
-                activity.beneficiariesWomen,
-                activity.beneficiariesMen,
-                activity.hours.toFixed(2)
-            ]);
-        });
-        
-        excelData.push([]);
-        excelData.push(["RESUMEN TOTAL"]);
-        excelData.push(["Total Actividades:", data.totalActivities]);
-        excelData.push(["Total Horas:", data.totalHours]);
-        excelData.push(["Total Beneficiarios:", data.totalBeneficiaries.total]);
-        excelData.push(["Beneficiarias Mujeres:", data.totalBeneficiaries.women]);
-        excelData.push(["Beneficiarios Hombres:", data.totalBeneficiaries.men]);
-        excelData.push([]);
-        excelData.push(["NOTA:", "Este reporte incluye TODAS las actividades donde participaste,"]);
-        excelData.push(["", "tanto las que reportaste personalmente como aquellas donde"]);
-        excelData.push(["", "otras voluntarias te incluyeron como participante."]);
-        excelData.push([]);
-        
-        // Approval
-        excelData.push([]);
-        excelData.push(["APROBACION"]);
-        excelData.push([]);
-        excelData.push(["Visto Bueno - Comite Organizador:", "_________________________"]);
-        excelData.push(["Visto Bueno - Consejo General:", "_________________________"]);
-        excelData.push([]);
-        
-        // Footer with verification link
-        const verificationLink = `https://tecno-civico.org/verify?token=${user.identidadSuffix}_${data.month.replace(/ /g, '_')}`;
-        
-        excelData.push([]);
-        excelData.push(["DOCUMENTO GENERADO AUTOMATICAMENTE"]);
-        excelData.push([`Este documento se genera automaticamente conforme a los registros administrados por el Comite Tecno Civico, IV-08 y se actualiza en tiempo real a traves del sistema de consolidacion y validacion.`]);
-        excelData.push([`Fecha y hora de emision (HONDURAS): ${hondurasDateTime}`]);
-        excelData.push([`Generado por: ${data.generatedBy}`]);
-        excelData.push([`Sitio web oficial: https://tecno-civico.org`]);
-        excelData.push([]);
-        excelData.push(["VERIFICACION OFICIAL"]);
-        excelData.push([`Verifique este documento en: ${verificationLink}`]);
-        excelData.push([`Este documento expira en 3 anos a partir de su emision.`]);
-        excelData.push([` (${data.totalActivities} Actividades Reportadas)`]);
-        
-        const ws = XLSX.utils.aoa_to_sheet(excelData);
-        
-        ws['!pageSetup'] = {
-            paperSize: 9,
-            orientation: 'portrait',
-            fitToPage: true,
-            fitToWidth: 1,
-            fitToHeight: 0
-        };
-        
-        ws['!cols'] = [
-            { wch: 6 },
-            { wch: 12 },
-            { wch: 35 },
-            { wch: 15 },
-            { wch: 12 },
-            { wch: 12 },
-            { wch: 10 }
-        ];
-        
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, `${user.name}`);
-        
-        const fileName = `Reporte-Individual-de-${user.name.replace(/\s/g, '_')}_${data.month.replace(/ /g, '-')}.xlsx`;
-        XLSX.writeFile(wb, fileName);
-        
-        alert(`Reporte generado para ${user.name}\n${data.totalActivities} actividades totales\n${data.totalHours} horas (${data.activitiesReported} tuyas + ${data.activitiesParticipated} de otras voluntarias)\n\nEste reporte incluye enlace de verificacion oficial.`);
-        
-    } catch (error) {
-        console.error('Error:', error);
-        hideWizardLoading();
-        
-        const shouldContinue = confirm(`No se pudo conectar con el servidor.\n\nDeseas generar tu reporte con los datos locales?\n\nEste reporte NO sera verificable.`);
-        
-        if (shouldContinue) {
-            generateLocalUserReport(user);
-        }
-    }
-}
-
-function generateLocalUserReport(user) {
-    if (!user) {
-        alert('No hay usuario seleccionado');
-        return;
-    }
-    
-    const userActivities = activities.filter(activity => {
-        if (activity.createdBy === user.id) return true;
-        if (activity.createdBy === user.identidadSuffix) return true;
-        if (activity.createdBy && activity.createdBy.includes(user.identidadSuffix)) return true;
-        return false;
-    });
-    
-    if (userActivities.length === 0) {
-        alert(`${user.name} no tiene actividades registradas en este mes`);
-        return;
-    }
-    
-    const now = new Date();
-    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-    const currentMonth = monthNames[now.getMonth()];
-    const currentYear = now.getFullYear();
-    const calculatedTotalHours = userActivities.reduce((sum, act) => sum + (act.horas || 0), 0);
-    const hondurasDateTime = formatDateForDisplay(now, true);
-    
-    const data = [];
-    
-    // Header
-    data.push(["Comite Tecno-Civico"]);
-    data.push(["Iniciativa de Voluntariado | IV-08"]);
-    data.push(["HONDURAS"]);
-    data.push([]);
-    data.push(["INFORME INDIVIDUAL"]);
-    data.push([`ACTIVIDADES REPORTADAS`]);
-    data.push([`ESTE REPORTE NO HA SIDO VERIFICADO POR TERCEROS`]);
-    data.push([`Periodo: ${currentMonth} ${currentYear}`]);
-    data.push([`Reporte generado: ${hondurasDateTime}`]);
-    data.push([]);
-    
-    // Volunteer data
-    data.push(["DATOS DE LA VOLUNTARIO/A"]);
-    data.push(["Nombre:", user.name]);
-    data.push(["ID:", user.identidadSuffix || 'No registrado']);
-    data.push(["Rol:", user.rolNombre]);
-    data.push(["Telefono:", "_________________"]);
-    data.push(["Total Horas:", `${calculatedTotalHours.toFixed(2)} horas`]);
-    data.push(["Total Actividades:", userActivities.length]);
-    data.push([]);
-    
-    // Feedback
-    const monthKey = getCurrentMonthKey();
-    const savedFeedback = localStorage.getItem(`feedback_Voluntario_${monthKey}`);
-    let feedback = { scope: '', difficulties: '', recommendations: '', impact: '' };
-    
-    if (savedFeedback) {
-        try {
-            feedback = JSON.parse(savedFeedback);
-        } catch(e) {}
-    } else {
-        const savedDesc = localStorage.getItem(`desc_${monthKey}`);
-        if (savedDesc) {
-            try {
-                const desc = JSON.parse(savedDesc);
-                feedback = {
-                    scope: desc.scope || '',
-                    difficulties: desc.difficulties || '',
-                    recommendations: desc.recommendations || '',
-                    impact: desc.impact || ''
-                };
-            } catch(e) {}
-        }
-    }
-    
-    if (feedback.scope || feedback.difficulties || feedback.recommendations || feedback.impact) {
-        data.push(["RETROALIMENTACION DEL MES"]);
-        data.push([]);
-        if (feedback.scope) data.push(["Alcance / Scope:", feedback.scope]);
-        if (feedback.difficulties) data.push(["Dificultades Encontradas:", feedback.difficulties]);
-        if (feedback.recommendations) data.push(["Recomendaciones:", feedback.recommendations]);
-        if (feedback.impact) data.push(["Impacto Generado:", feedback.impact]);
-        data.push([]);
-    }
-    
-    // Activities
-    data.push(["DETALLE DE ACTIVIDADES"]);
-    data.push([]);
-    data.push(["N°", "FECHA", "ACTIVIDAD", "HORA INICIO", "HORA FIN", "DURACION (min)", "DURACION (hrs)", "BENEFICIARIAS (M)", "BENEFICIARIOS (H)"]);
-    
-    const sortedActivities = [...userActivities].sort((a, b) => new Date(a.date) - new Date(b.date));
-    let totalMinutes = 0;
-    
-    sortedActivities.forEach((activity, index) => {
-        const durationMinutes = Math.round((activity.horas || 0) * 60);
-        totalMinutes += durationMinutes;
-        
-        data.push([
-            index + 1,
-            formatDateForDisplay(activity.date),
-            activity.name || '',
-            activity.startTime || '—',
-            activity.endTime || '—',
-            durationMinutes,
-            (activity.horas || 0).toFixed(2),
-            activity.beneficiadas_mujeres || 0,
-            activity.beneficiados_hombres || 0
-        ]);
-    });
-    
-    const totalHoursDecimal = (totalMinutes / 60).toFixed(2);
-    data.push([]);
-    data.push(["RESUMEN TOTAL"]);
-    data.push(["Total Actividades:", userActivities.length]);
-    data.push(["Total Horas:", `${totalMinutes} minutos (${totalHoursDecimal} horas)`]);
-    data.push([]);
-    data.push(["NOTA:", "Este documento se genera automaticamente conforme a los registros reportado por el voluntario/a, miembro del Comite Tecno-Civico, IV-08."]);
-    data.push([]);
-    
-    // Approval
-    data.push([]);
-    data.push(["APROBACION"]);
-    data.push([]);
-    data.push(["Visto Bueno - Comite Organizador:", "_________________________"]);
-    data.push(["Visto Bueno - Consejo General:", "_________________________"]);
-    data.push([]);
-    
-    // Footer
-    data.push([]);
-    data.push(["DOCUMENTO GENERADO AUTOMATICAMENTE"]);
-    data.push([`ESTE DOCUMENTO NO HA SIDO VERIFICADO POR TERCEROS`]);
-    data.push([`Para un reporte oficial verificable, asegurese de tener conexion a internet.`]);
-    data.push([`Fecha y hora de emision (HONDURAS): ${hondurasDateTime}`]);
-    data.push([`Generado por: ${user.name} (${user.rolNombre})`]);
-    data.push([`Sitio web oficial: https://tecno-civico.org`]);
-    data.push([`Fuente: Datos locales registrado por el portador del dispositivo.`]);
-    
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    
-    ws['!pageSetup'] = {
-        paperSize: 9,
-        orientation: 'portrait',
-        fitToPage: true,
-        fitToWidth: 1,
-        fitToHeight: 0
-    };
-    
-    ws['!cols'] = [
-        { wch: 6 },
-        { wch: 12 },
-        { wch: 30 },
-        { wch: 10 },
-        { wch: 10 },
-        { wch: 12 },
-        { wch: 10 },
-        { wch: 12 },
-        { wch: 12 }
-    ];
-    
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `Mis Reportes - ${user.name}`);
-    
-    const fileName = `reporte_local_${user.name.replace(/\s/g, '_')}_${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-    
-    alert(`Reporte LOCAL generado para ${user.name}\n${userActivities.length} actividades\nTotal: ${totalMinutes} minutos (${totalHoursDecimal} horas)\n\nEste reporte no ha sido verificado por terceros.`);
-}
 </script>
 
 
