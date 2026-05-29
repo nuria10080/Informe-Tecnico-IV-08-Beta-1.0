@@ -1441,22 +1441,19 @@ body {
 
 <div class="kpi-grid">
     <div class="kpi-item" id="voluntariosActivosContainer">
-            <div class="kpi-label">⚡ Voluntarios Activos</div>
-            <div class="kpi-value" id="totalvoluntariosActivos">0</div>
-            <div class="voluntarios-dropdown">
-                <div style="display:flex; flex-direction:column; gap:6px;">
-                    <select id="voluntariosRoles"><option value="">Seleccionar rol</option></select>
-                    <input type="text" id="nuevaVoluntarioNombre" placeholder="Nombre completo">
-                    <input type="text" id="identidadVoluntario" placeholder="Últimos 6 dígitos (opcional)" maxlength="6">
-                    <button onclick="agregarVoluntario()" style="background:var(--accent); color:white; border:none; border-radius:30px; padding:8px; font-weight:bold;">➕ Agregar Voluntario</button>
-                </div>
-                <div id="rolesActivosList"></div>
-            </div>
+        <div class="kpi-label">⚡ Voluntarios Activos</div>
+        <div class="kpi-value" id="totalvoluntariosActivos">0</div>
+            
+    </div>
+    <div class="kpi-item">
+        <div class="kpi-label">Beneficiados</div>
+        <div class="kpi-value" id="totalBeneficiados">0</div>
+        <div class="gender-breakdown"><span class="gender-f" id="totalMujeresBen">0</span> · <span class="gender-m" id="totalHombresBen">0</span>
         </div>
-    <div class="kpi-item"><div class="kpi-label">Beneficiados</div><div class="kpi-value" id="totalBeneficiados">0</div><div class="gender-breakdown"><span class="gender-f" id="totalMujeresBen">0</span> · <span class="gender-m" id="totalHombresBen">0</span></div></div>
-    <div class="kpi-item"><div class="kpi-label">⏱️ Total Horas</div><div class="kpi-value" id="totalHoras">0</div>
-    <div style="display: flex; gap: 15px; margin-top: 5px; font-size: 0.9rem; align-items: center; justify-content: center;">
-        <div>
+    </div>
+    <div class="kpi-item">
+        <div class="kpi-label">⏱️ Total Horas</div>
+        <div class="kpi-value" id="totalHoras">0</div>
             <span style="color: var(--text-medium);">🏢 Virtual:</span>
             <span id="totalHorasFilial" style="font-weight: 600; color: var(--primary-dark);">0</span>
         </div>
@@ -1594,7 +1591,7 @@ body {
 // ==========================================
 // GLOBAL STATE
 // ==========================================
-const APP_VERSION = 'Informe-Tecnico-v2.0.12';
+const APP_VERSION = 'Informe-Tecnico-v2.0.13';
 let allActivities = [];  
 let activities = [];     
 let voluntariosActivos = [];
@@ -1906,23 +1903,11 @@ function updateGlobalKPIs() {
     // Get current user's suffix
     const userSuffix = currentUser?.identidadSuffix;
     
-    // For voluntarios activos (unique reporters from all activities)
+    // For voluntarios activos - use allActivities (full backend data)
     let uniqueReporters = new Set();
-    
-    // For personalized KPIs (user's own data)
-    let myTotalHoras = 0;
-    let myTotalHorasFilial = 0;
-    let myTotalHorasCampo = 0;
-    let myTotalActividades = 0;
-    let myTotalMujeres = 0;
-    let myTotalHombres = 0;
-    
-    // Process all activities (already loaded from backend via unifiedLoad)
-    if (typeof activities !== 'undefined' && activities.length > 0) {
-        activities.forEach(activity => {
-            // Track unique reporters for voluntarios activos
+    if (typeof allActivities !== 'undefined' && allActivities.length > 0) {
+        allActivities.forEach(activity => {
             if (activity.createdBy) {
-                // Extract the 6-digit suffix if it's in a longer string
                 let reporterId = activity.createdBy;
                 if (reporterId.includes('-')) {
                     const parts = reporterId.split('-');
@@ -1933,23 +1918,32 @@ function updateGlobalKPIs() {
                 }
                 uniqueReporters.add(reporterId);
             }
+        });
+    }
+    
+    // For personalized KPIs - use filtered activities (user's own data)
+    let myTotalHoras = 0;
+    let myTotalHorasFilial = 0;
+    let myTotalHorasCampo = 0;
+    let myTotalActividades = 0;
+    let myTotalMujeres = 0;
+    let myTotalHombres = 0;
+    
+    if (typeof activities !== 'undefined' && activities.length > 0 && userSuffix) {
+        activities.forEach(activity => {
+            const isOwnActivity = (activity.createdBy === userSuffix) || 
+                                 (activity.createdBy && activity.createdBy.includes(userSuffix));
             
-            // Only count user's own activities for personalized KPIs
-            if (userSuffix) {
-                const isOwnActivity = (activity.createdBy === userSuffix) || 
-                                     (activity.createdBy && activity.createdBy.includes(userSuffix));
+            if (isOwnActivity) {
+                myTotalHoras += activity.horas || 0;
+                myTotalMujeres += activity.beneficiadas_mujeres || 0;
+                myTotalHombres += activity.beneficiados_hombres || 0;
+                myTotalActividades++;
                 
-                if (isOwnActivity) {
-                    myTotalHoras += activity.horas || 0;
-                    myTotalMujeres += activity.beneficiadas_mujeres || 0;
-                    myTotalHombres += activity.beneficiados_hombres || 0;
-                    myTotalActividades++;
-                    
-                    if (activity.actionType === 'filial') {
-                        myTotalHorasFilial += activity.horas || 0;
-                    } else if (activity.actionType === 'campo') {
-                        myTotalHorasCampo += activity.horas || 0;
-                    }
+                if (activity.actionType === 'filial') {
+                    myTotalHorasFilial += activity.horas || 0;
+                } else if (activity.actionType === 'campo') {
+                    myTotalHorasCampo += activity.horas || 0;
                 }
             }
         });
@@ -1973,11 +1967,12 @@ function updateGlobalKPIs() {
     if (totalMujeresBenEl) totalMujeresBenEl.innerText = myTotalMujeres;
     if (totalHombresBenEl) totalHombresBenEl.innerText = myTotalHombres;
     
-    // Voluntarios activos from unique reporters in activities
+    // Voluntarios activos from allActivities (full backend data)
     if (totalVoluntariosActivosEl) {
         totalVoluntariosActivosEl.innerText = uniqueReporters.size;
     }
 }
+
 
 // ==========================================
 // UTILITY FUNCTIONS
