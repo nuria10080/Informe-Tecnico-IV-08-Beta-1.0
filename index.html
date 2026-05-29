@@ -1588,7 +1588,7 @@ body {
 // ==========================================
 // GLOBAL STATE
 // ==========================================
-const APP_VERSION = 'Informe-Tecnico-v2.0.18';
+const APP_VERSION = 'Informe-Tecnico-v2.0.19';
 let allActivities = [];  
 let activities = [];     
 let voluntariosActivos = [];
@@ -2821,25 +2821,17 @@ function calculateProfileHoursFromActivities(profile) {
     if (typeof activities === 'undefined' || !activities.length) return 0;
     
     let total = 0;
+    const userSuffix = profile.identidadSuffix;
+    
     activities.forEach(activity => {
-        // Check if profile is the creator
-        if (activity.createdBy === profile.id) {
-            total += activity.horas || 0;
-        }
-        // Check if profile is in voluntariosParticipants
-        else if (activity.voluntariosParticipants && activity.voluntariosParticipants.length > 0) {
-            const matched = activity.voluntariosParticipants.some(p => 
-                p.identidadSuffix && normalizeName(p.identidadSuffix) === normalizeName(profile.identidadSuffix)
-            );
-            if (matched) total += activity.horas || 0;
-        }
-        // Check for solo activity with placeholder
-        else if (profile.isPlaceholder && activity.voluntarias === 1 && !activity.voluntariosParticipants?.length) {
+        // Check if activity was created by this user (match by suffix)
+        if (activity.createdBy === userSuffix) {
             total += activity.horas || 0;
         }
     });
     return total;
 }
+
 
 // ==========================================
 // NEW HELPER: calculateProfileActivityCount()
@@ -2848,17 +2840,10 @@ function calculateProfileActivityCount(profile) {
     if (typeof activities === 'undefined' || !activities.length) return 0;
     
     let count = 0;
+    const userSuffix = profile.identidadSuffix;
+    
     activities.forEach(activity => {
-        if (activity.createdBy === profile.id) {
-            count++;
-        }
-        else if (activity.voluntariosParticipants && activity.voluntariosParticipants.length > 0) {
-            const matched = activity.voluntariosParticipants.some(p => 
-                p.identidadSuffix && normalizeName(p.identidadSuffix) === normalizeName(profile.identidadSuffix)
-            );
-            if (matched) count++;
-        }
-        else if (profile.isPlaceholder && activity.voluntarias === 1 && !activity.voluntariosParticipants?.length) {
+        if (activity.createdBy === userSuffix) {
             count++;
         }
     });
