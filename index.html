@@ -1424,174 +1424,171 @@ body {
 </head>
 <body>
 <div class="dashboard-card">
-   <div class="report-header">
-    <div class="logo-section"> 
-        <img src="https://mcusercontent.com/4934324bb1de39bfbf2900691/images/3c7614e4-3206-c68d-ef3f-3f13f1635214.png" alt="Comité Tecno-Cívico">
+    <div class="report-header">
+        <div class="logo-section"> 
+            <img src="https://mcusercontent.com/4934324bb1de39bfbf2900691/images/3c7614e4-3206-c68d-ef3f-3f13f1635214.png" alt="Comité Tecno-Cívico">
+        </div>
+        <div class="title-section">
+            <h1>INFORME TÉCNICO <span>IV-08</span></h1>
+        </div>
+        <div class="badge">
+            <span>INTIBUCA | </span>
+            <span id="currentDateDisplay"></span>
+        </div>
     </div>
-    <div class="title-section">
-        <h1>INFORME TÉCNICO <span>IV-08</span></h1>
-        
-    </div>
-    <div class="badge">
-        <span>INTIBUCA | </span>
-        <span id="currentDateDisplay"></span>
-    </div>
-    
-</div>
 
-<div class="kpi-grid">
-    <div class="kpi-item" id="voluntariosActivosContainer">
-        <div class="kpi-label">⚡ Voluntarios Activos</div>
-        <div class="kpi-value" id="totalvoluntariosActivos">0</div>
+    <div class="kpi-grid">
+        <div class="kpi-item" id="voluntariosActivosContainer">
+            <div class="kpi-label">⚡ Voluntarios Activos</div>
+            <div class="kpi-value" id="totalvoluntariosActivos">0</div>
+        </div>
+        <div class="kpi-item">
+            <div class="kpi-label">Beneficiados</div>
+            <div class="kpi-value" id="totalBeneficiados">0</div>
+            <div class="gender-breakdown">
+                <span class="gender-f" id="totalMujeresBen">0</span> · 
+                <span class="gender-m" id="totalHombresBen">0</span>
+            </div>
+        </div>
+        <div class="kpi-item">
+            <div class="kpi-label">⏱️ Total Horas</div>
+            <div class="kpi-value" id="totalHoras">0</div>
+            <div>
+                <span style="color: var(--text-medium);">🏢 Virtual:</span>
+                <span id="totalHorasFilial" style="font-weight: 600; color: var(--primary-dark);">0</span>
+            </div>
+            <div>
+                <span style="color: var(--text-medium);">🌐 Campo:</span>
+                <span id="totalHorasCampo" style="font-weight: 600; color: var(--primary-dark);">0</span>
+            </div>
+        </div>
+        <div class="kpi-item">
+            <div class="kpi-label">📋 Actividades</div>
+            <div class="kpi-value" id="totalActividades">0</div>
+        </div>
+    </div>
+
+    <!-- Profile Selector -->
+    <div class="profile-selector" style="background: var(--neutral-light); border-radius: 20px; padding: 12px 16px; margin-bottom: 20px; border: 1px solid var(--neutral-border);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <select id="currentUserSelect" style="padding: 8px 16px; width: 100%; border-radius: 10px; border: 1px solid var(--accent); background: white;">
+                    <option>Cargando...</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="showManagevoluntarios()" style="background: var(--primary); color: white; border: none; border-radius: 30px; padding: 6px 14px; font-size: 0.75rem; cursor: pointer;">📋 Registro de Horas</button>
+            </div>
+        </div>
+        <div id="currentUserInfo" style="margin-top: 8px; font-size: 0.7rem; color: var(--text-medium);">
+            Las horas registradas se asignarán al usuario seleccionado
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-container">
+        <div class="chart-box"><canvas id="chartActivityResources"></canvas><div class="chart-title">Voluntarios por Actividad</div></div>
+        <div class="chart-box"><canvas id="chartAtencionesGenero"></canvas><div class="chart-title">Atenciones por Genero</div></div>
+        <div class="chart-box"><canvas id="chartTiempoRequerido"></canvas><div class="chart-title">Duración Actividades</div></div>
+        <div class="chart-box"><canvas id="chartActivevoluntarios"></canvas><div class="chart-title">Voluntarios Más Activas</div></div>
+    </div>
+
+    <!-- Activities Section -->
+    <div class="activities-section">
+        <table class="activities-table">
+            <thead>
+                <tr><th>Fecha</th><th>Actividad</th><th>Voluntarios</th><th>Horas</th><th>F</th><th>M</th><th>Beneficiarios</th><th>Colaboradores</th><th>Ubicación</th><th>QR</th><th></th></tr>
+            </thead>
+            <tbody id="activitiesBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Add Activity Row -->
+    <div class="add-activity-row">
+        <div style="display: flex; align-items: center; margin-bottom: 10px;">
+            <div style="display: flex; justify-content: flex-start; margin-bottom: 10px;">
+                <button type="button" class="btn-add-row" onclick="openActivityWizard()">+</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Description Items -->
+    <div class="desc-item">
+        <label>🎯 Alcance / Scope</label>
+        <textarea id="scopeText" maxlength="1300" placeholder="Describa el alcance de las actividades..."></textarea>
+        <div class="print-text" id="print_scope"></div>
+    </div>
+
+    <div class="desc-item">
+        <label>⚠️ Dificultades</label>
+        <textarea id="difficultiesText" maxlength="1300" placeholder="Describa dificultades encontradas..."></textarea>
+        <div class="print-text" id="print_difficulties"></div>
+    </div>
+
+    <div class="desc-item">
+        <label>📈 Recomendaciones</label>
+        <textarea id="recommendationsText" maxlength="1300" placeholder="Recomendaciones..."></textarea>
+        <div class="print-text" id="print_recommendations"></div>
+    </div>
+
+    <div class="desc-item">
+        <label>💥 Impacto</label>
+        <textarea id="impactText" maxlength="1300" placeholder="Impacto observado..."></textarea>
+        <div class="print-text" id="print_impact"></div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer-info">
+        <span>Comité Tecno-Cívico · IV-08</span> HONDURAS <span id="footerDate"></span>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+        <button class="action-button" onclick="showImportQRModal()" style="background:var(--info);">📷 Importar QR</button>
+        <button class="action-button" onclick="exportToExcel(event)" style="background:var(--success);">📊 Exportar Excel</button>
+        <button class="action-button print" onclick="exportPDF()">📄 Imprimir</button>
+        <button class="action-button save" onclick="unifiedSave(); this.textContent='✅ Guardado!'; setTimeout(() => this.textContent='💾 Guardar', 2000)">💾 Guardar</button>
+        <button class="action-button clear" onclick="clearData()">🗑️ Borrar</button>
+    </div>
+
+    <!-- QR Import Modal -->
+    <div id="qrImportModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.9); z-index:2000; justify-content:center; align-items:center;">
+        <div style="background:white; border-radius:30px; max-width:90%; width:400px; padding:20px; max-height:90vh; overflow-y:auto;">
+            <h3 style="margin-bottom:15px;">📷 Importar desde QR</h3>
             
-    </div>
-    <div class="kpi-item">
-        <div class="kpi-label">Beneficiados</div>
-        <div class="kpi-value" id="totalBeneficiados">0</div>
-        <div class="gender-breakdown"><span class="gender-f" id="totalMujeresBen">0</span> · <span class="gender-m" id="totalHombresBen">0</span>
-        </div>
-    </div>
-    <div class="kpi-item">
-        <div class="kpi-label">⏱️ Total Horas</div>
-        <div class="kpi-value" id="totalHoras">0</div>
-            <span style="color: var(--text-medium);">🏢 Virtual:</span>
-            <span id="totalHorasFilial" style="font-weight: 600; color: var(--primary-dark);">0</span>
-        </div>
-        <div>
-            <span style="color: var(--text-medium);">🌐 Campo:</span>
-            <span id="totalHorasCampo" style="font-weight: 600; color: var(--primary-dark);">0</span>
-        </div>
-    </div>
-</div>
-<div class="kpi-item"><div class="kpi-label">📋 Actividades</div>
-    <div class="kpi-value" id="totalActividades">0</div>
-</div>
-
-</div>
-<!-- Profile Selector - ADD THIS AFTER KPI GRID -->
-<div class="profile-selector" style="background: var(--neutral-light); border-radius: 20px; padding: 12px 16px; margin-bottom: 20px; border: 1px solid var(--neutral-border);">
-    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-        <div style="display: flex; align-items: center; gap: 10px;">
+            <!-- Camera Preview -->
+            <div id="qrPreview" style="background:#000; border-radius:16px; min-height:200px; display:flex; align-items:center; justify-content:center;">
+                <p style="color:white; font-size:0.7rem;">Presiona "Iniciar Cámara"</p>
+            </div>
+            <button onclick="startQRScanner()" style="margin:10px 0; padding:12px; background:var(--accent); color:white; border:none; border-radius:30px; width:100%; cursor:pointer;">📷 Iniciar Cámara</button>
             
-            <select id="currentUserSelect" style="padding: 8px 16px; width: 100%; border-radius: 10px; border: 1px solid var(--accent); background: white;">
-                <option>Cargando...</option>
-            </select>
-        </div>
-        <div style="display: flex; gap: 8px;">
+            <!-- Divider -->
+            <div style="border-top:1px solid var(--neutral-border); margin:15px 0;"></div>
             
-            <button onclick="showManagevoluntarios()" style="background: var(--primary); color: white; border: none; border-radius: 30px; padding: 6px 14px; font-size: 0.75rem; cursor: pointer;">📋 Registro de Horas</button>
+            <!-- Image Upload for QR Code -->
+            <div id="qrImageUploadContainer" style="margin:10px 0; padding:12px; background:var(--neutral-light); border-radius:16px; border:1px dashed var(--accent); text-align:center;">
+                <label style="display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
+                    <span style="font-size:1.5rem;">📁</span>
+                    <span style="font-size:0.75rem; font-weight:500;">Subir imagen del código QR</span>
+                    <span style="font-size:0.6rem; color:var(--text-medium);">(selecciona una foto del código QR)</span>
+                    <input type="file" id="qrImageUpload" accept="image/*" style="display:none;">
+                </label>
+            </div>
+            
+            <p id="qrStatus" style="font-size:0.7rem; margin:12px 0; text-align:center; color:var(--text-medium);">Esperando imagen o escaneo...</p>
+            
+            <!-- Action Buttons -->
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button onclick="closeQRImportModal()" style="flex:1; padding:12px; background:var(--warning); color:white; border:none; border-radius:30px; cursor:pointer;">❌ Cerrar</button>
+            </div>
         </div>
     </div>
-    <div id="currentUserInfo" style="margin-top: 8px; font-size: 0.7rem; color: var(--text-medium);">
-        Las horas registradas se asignarán al usuario seleccionado
-    </div>
-</div>
-<!-- charts -->
-<div class="charts-container">
-    <div class="chart-box"><canvas id="chartActivityResources"></canvas><div class="chart-title">Voluntarios por Actividad</div></div>
-    <div class="chart-box"><canvas id="chartAtencionesGenero"></canvas><div class="chart-title">Atenciones por Genero</div></div>
-    <div class="chart-box"><canvas id="chartTiempoRequerido"
-    ></canvas><div class="chart-title">Duración Actividades</div></div>
-    <div class="chart-box"><canvas id="chartActivevoluntarios"></canvas><div class="chart-title">Voluntarios Más Activas</div></div>
-</div>
-
-<div class="activities-section">
-<table class="activities-table">
-<thead><tr><th>Fecha</th><th>Actividad</th><th>Voluntarios</th><th>Horas</th><th>F</th><th>M</th><th>Beneficiarios</th><th>Colaboradores</th><th>Ubicación</th><th>QR</th><th></th></tr></thead>
-<tbody id="activitiesBody"></tbody>
-</table>
-</div>
-<!-- new activity row -->
-<div class="add-activity-row">
-    <div style="display: flex;  align-items: center; margin-bottom: 10px;">
-        <div style="display: flex; justify-content: flex-start; margin-bottom: 10px;">
-            <button type="button" class="btn-add-row" onclick="openActivityWizard()">+</button>
-        </div>
-    </div>
-    
-    
-</div>
-
-
-
-
-<div class="desc-item">
-  <label>🎯 Alcance / Scope</label>
-  <textarea id="scopeText" maxlength="1300" placeholder="Describa el alcance de las actividades..."></textarea>
-  <div class="print-text" id="print_scope"></div>
-</div>
-
-<div class="desc-item">
-  <label>⚠️ Dificultades </label>
-  <textarea id="difficultiesText" maxlength="1300" placeholder="Describa dificultades encontradas..."></textarea>
-  <div class="print-text" id="print_difficulties"></div>
-</div>
-
-<div class="desc-item">
-  <label>📈 Recomendaciones</label>
-  <textarea id="recommendationsText" maxlength="1300" placeholder="Recomendaciones..."></textarea>
-  <div class="print-text" id="print_recommendations"></div>
-</div>
-
-<div class="desc-item">
-  <label>💥 Impacto</label>
-  <textarea id="impactText" maxlength="1300" placeholder="Impacto observado..."></textarea>
-  <div class="print-text" id="print_impact"></div>
-</div>
-
-<!-- footer -->
-
-<div class="footer-info"><span>Comité Tecno-Cívico · IV-08  </span>HONDURAS<span id="footerDate"></span></div>
-<div class="action-buttons">
-    <button class="action-button" onclick="showImportQRModal()" style="background:var(--info);">📷 Importar QR</button>
-    <button class="action-button" onclick="exportToExcel(event)" style="background:var(--success);">📊 Exportar Excel</button>
-    <button class="action-button print" onclick="exportPDF()">📄 Imprimir</button>
-    <button class="action-button save" onclick="unifiedSave(); this.textContent='✅ Guardado!'; setTimeout(() => this.textContent='💾 Guardar', 2000)">
-        💾 Guardar
-    </button>
-    <button class="action-button clear" onclick="clearData()">🗑️ Borrar</button>
-</div>
-<!-- QR Import Modal -->
-<div id="qrImportModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.9); z-index:2000; justify-content:center; align-items:center;">
-    <div style="background:white; border-radius:30px; max-width:90%; width:400px; padding:20px; max-height:90vh; overflow-y:auto;">
-        <h3 style="margin-bottom:15px;">📷 Importar desde QR</h3>
-        
-        <!-- Camera Preview -->
-        <div id="qrPreview" style="background:#000; border-radius:16px; min-height:200px; display:flex; align-items:center; justify-content:center;">
-            <p style="color:white; font-size:0.7rem;">Presiona "Iniciar Cámara"</p>
-        </div>
-        <button onclick="startQRScanner()" style="margin:10px 0; padding:12px; background:var(--accent); color:white; border:none; border-radius:30px; width:100%; cursor:pointer;">📷 Iniciar Cámara</button>
-        
-        <!-- Divider -->
-        <div style="border-top:1px solid var(--neutral-border); margin:15px 0;"></div>
-        
-        <!-- Image Upload for QR Code -->
-        <div id="qrImageUploadContainer" style="margin:10px 0; padding:12px; background:var(--neutral-light); border-radius:16px; border:1px dashed var(--accent); text-align:center;">
-            <label style="display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
-                <span style="font-size:1.5rem;">📁</span>
-                <span style="font-size:0.75rem; font-weight:500;">Subir imagen del código QR</span>
-                <span style="font-size:0.6rem; color:var(--text-medium);">(selecciona una foto del código QR)</span>
-                <input type="file" id="qrImageUpload" accept="image/*" style="display:none;">
-            </label>
-        </div>
-        
-        <p id="qrStatus" style="font-size:0.7rem; margin:12px 0; text-align:center; color:var(--text-medium);">Esperando imagen o escaneo...</p>
-        
-        <!-- Action Buttons -->
-        <div style="display:flex; gap:10px; margin-top:15px;">
-            <button onclick="closeQRImportModal()" style="flex:1; padding:12px; background:var(--warning); color:white; border:none; border-radius:30px; cursor:pointer;">❌ Cerrar</button>
-        </div>
-    </div>
-</div>
-</div>
-
-
 </div>
 <script>
 // ==========================================
 // GLOBAL STATE
 // ==========================================
-const APP_VERSION = 'Informe-Tecnico-v2.0.14';
+const APP_VERSION = 'Informe-Tecnico-v2.0.15';
 let allActivities = [];  
 let activities = [];     
 let voluntariosActivos = [];
