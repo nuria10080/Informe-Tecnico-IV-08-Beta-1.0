@@ -1594,8 +1594,9 @@ body {
 // ==========================================
 // GLOBAL STATE
 // ==========================================
-// At the very top of your script, right after the opening <script> tag
-let activities = [];
+const APP_VERSION = 'Informe-Tecnico-v2.0.12';
+let allActivities = [];  
+let activities = [];     
 let voluntariosActivos = [];
 let VoluntarioProfiles = [];
 let currentUser = null;
@@ -1611,9 +1612,7 @@ const identidadSuffix = identidad
   ? `Voluntario-${Date.now()}-${identidad}`
   : null;
 
-// Add this at the top of your script right after your other global variables
-// Make sure this matches the CACHE_NAME in your sw.js
-const APP_VERSION = 'Informe-Tecnico-v2.0.11';
+
 
 // Then update your checkAndHandleMonthChange function:
 async function checkAndHandleMonthChange() {
@@ -1904,46 +1903,59 @@ function normalizeName(str) {
 }
 
 function updateGlobalKPIs() {
-    if (typeof activities === 'undefined' || !activities.length) {
-        const totalHorasEl = document.getElementById('totalHoras');
-        const totalHorasFilialEl = document.getElementById('totalHorasFilial');
-        const totalHorasCampoEl = document.getElementById('totalHorasCampo');
-        const totalActividadesEl = document.getElementById('totalActividades');
-        const totalBeneficiadosEl = document.getElementById('totalBeneficiados');
-        const totalMujeresBenEl = document.getElementById('totalMujeresBen');
-        const totalHombresBenEl = document.getElementById('totalHombresBen');
-        
-        if (totalHorasEl) totalHorasEl.innerText = '0';
-        if (totalHorasFilialEl) totalHorasFilialEl.innerText = '0';
-        if (totalHorasCampoEl) totalHorasCampoEl.innerText = '0';
-        if (totalActividadesEl) totalActividadesEl.innerText = '0';
-        if (totalBeneficiadosEl) totalBeneficiadosEl.innerText = '0';
-        if (totalMujeresBenEl) totalMujeresBenEl.innerText = '0';
-        if (totalHombresBenEl) totalHombresBenEl.innerText = '0';
-        return;
+    // Get current user's suffix
+    const userSuffix = currentUser?.identidadSuffix;
+    
+    // For voluntarios activos (unique reporters from all activities)
+    let uniqueReporters = new Set();
+    
+    // For personalized KPIs (user's own data)
+    let myTotalHoras = 0;
+    let myTotalHorasFilial = 0;
+    let myTotalHorasCampo = 0;
+    let myTotalActividades = 0;
+    let myTotalMujeres = 0;
+    let myTotalHombres = 0;
+    
+    // Process all activities (already loaded from backend via unifiedLoad)
+    if (typeof activities !== 'undefined' && activities.length > 0) {
+        activities.forEach(activity => {
+            // Track unique reporters for voluntarios activos
+            if (activity.createdBy) {
+                // Extract the 6-digit suffix if it's in a longer string
+                let reporterId = activity.createdBy;
+                if (reporterId.includes('-')) {
+                    const parts = reporterId.split('-');
+                    const lastPart = parts[parts.length - 1];
+                    if (lastPart && lastPart.length === 6 && /^\d+$/.test(lastPart)) {
+                        reporterId = lastPart;
+                    }
+                }
+                uniqueReporters.add(reporterId);
+            }
+            
+            // Only count user's own activities for personalized KPIs
+            if (userSuffix) {
+                const isOwnActivity = (activity.createdBy === userSuffix) || 
+                                     (activity.createdBy && activity.createdBy.includes(userSuffix));
+                
+                if (isOwnActivity) {
+                    myTotalHoras += activity.horas || 0;
+                    myTotalMujeres += activity.beneficiadas_mujeres || 0;
+                    myTotalHombres += activity.beneficiados_hombres || 0;
+                    myTotalActividades++;
+                    
+                    if (activity.actionType === 'filial') {
+                        myTotalHorasFilial += activity.horas || 0;
+                    } else if (activity.actionType === 'campo') {
+                        myTotalHorasCampo += activity.horas || 0;
+                    }
+                }
+            }
+        });
     }
     
-    let totalHoras = 0;
-    let totalHorasFilial = 0;
-    let totalHorasCampo = 0;
-    let totalActividades = activities.length;
-    let totalMujeres = 0;
-    let totalHombres = 0;
-    
-    activities.forEach(activity => {
-        totalHoras += activity.horas || 0;
-        totalMujeres += activity.beneficiadas_mujeres || 0;
-        totalHombres += activity.beneficiados_hombres || 0;
-        
-        if (activity.actionType === 'filial') {
-            totalHorasFilial += activity.horas || 0;
-        } else if (activity.actionType === 'campo') {
-            totalHorasCampo += activity.horas || 0;
-        }
-    });
-    
-    const totalBeneficiados = totalMujeres + totalHombres;
-    
+    // Update DOM elements
     const totalHorasEl = document.getElementById('totalHoras');
     const totalHorasFilialEl = document.getElementById('totalHorasFilial');
     const totalHorasCampoEl = document.getElementById('totalHorasCampo');
@@ -1951,15 +1963,22 @@ function updateGlobalKPIs() {
     const totalBeneficiadosEl = document.getElementById('totalBeneficiados');
     const totalMujeresBenEl = document.getElementById('totalMujeresBen');
     const totalHombresBenEl = document.getElementById('totalHombresBen');
+    const totalVoluntariosActivosEl = document.getElementById('totalvoluntariosActivos');
     
-    if (totalHorasEl) totalHorasEl.innerText = totalHoras.toFixed(2);
-    if (totalHorasFilialEl) totalHorasFilialEl.innerText = totalHorasFilial.toFixed(2);
-    if (totalHorasCampoEl) totalHorasCampoEl.innerText = totalHorasCampo.toFixed(2);
-    if (totalActividadesEl) totalActividadesEl.innerText = totalActividades;
-    if (totalBeneficiadosEl) totalBeneficiadosEl.innerText = totalBeneficiados;
-    if (totalMujeresBenEl) totalMujeresBenEl.innerText = totalMujeres;
-    if (totalHombresBenEl) totalHombresBenEl.innerText = totalHombres;
+    if (totalHorasEl) totalHorasEl.innerText = myTotalHoras.toFixed(2);
+    if (totalHorasFilialEl) totalHorasFilialEl.innerText = myTotalHorasFilial.toFixed(2);
+    if (totalHorasCampoEl) totalHorasCampoEl.innerText = myTotalHorasCampo.toFixed(2);
+    if (totalActividadesEl) totalActividadesEl.innerText = myTotalActividades;
+    if (totalBeneficiadosEl) totalBeneficiadosEl.innerText = myTotalMujeres + myTotalHombres;
+    if (totalMujeresBenEl) totalMujeresBenEl.innerText = myTotalMujeres;
+    if (totalHombresBenEl) totalHombresBenEl.innerText = myTotalHombres;
+    
+    // Voluntarios activos from unique reporters in activities
+    if (totalVoluntariosActivosEl) {
+        totalVoluntariosActivosEl.innerText = uniqueReporters.size;
+    }
 }
+
 // ==========================================
 // UTILITY FUNCTIONS
 // ==========================================
@@ -2789,172 +2808,6 @@ function getRolIdByNombre(rolNombre) {
         return rol ? rol.id : null;
     }
     return null;
-}
-
-function showAddVoluntarioModal() {
-    // Create modal overlay
-    const modal = document.createElement('div');
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.8);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 10000;
-    `;
-    
-    modal.innerHTML = `
-        <div style="background: white; border-radius: 24px; padding: 24px; width: 90%; max-width: 400px;">
-            <h3 style="margin: 0 0 20px 0; color: var(--primary);">📝 Crear Perfil de Voluntaria</h3>
-            
-            <div style="margin-bottom: 16px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Nombre completo</label>
-                <input type="text" id="modalVolunteerName" class="wizard-input" placeholder="Ej: María González" style="width: 100%;">
-            </div>
-            
-            <div style="margin-bottom: 16px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Últimos 6 dígitos de identidad</label>
-                <input type="text" id="modalVolunteerId" class="wizard-input" placeholder="Ej: 123456" maxlength="6" style="width: 100%;">
-                <small style="color: var(--text-medium);">Si tienes un código especial, se asignará automáticamente</small>
-            </div>
-            
-            <div style="margin-bottom: 16px;" id="roleSelectContainer">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Rol</label>
-                <select id="modalRoleSelect" class="wizard-input" style="width: 100%;">
-                    <option value="">-- Seleccionar rol --</option>
-                    ${rolesDisponibles.map(r => `<option value="${r.id}">${r.nombre}</option>`).join('')}
-                </select>
-            </div>
-            
-            <div style="margin-bottom: 16px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Estado</label>
-                <select id="modalStatusSelect" class="wizard-input" style="width: 100%;">
-                    <option value="A">Activo</option>
-                    <option value="ACO">Activo con Observaciones</option>
-                    <option value="JD">Consejo General</option>
-                </select>
-            </div>
-            
-            <div style="display: flex; gap: 12px; margin-top: 24px;">
-                <button id="modalCancelBtn" style="flex:1; padding: 12px; border: 2px solid var(--neutral-border); background: white; border-radius: 12px; cursor: pointer;">Cancelar</button>
-                <button id="modalCreateBtn" style="flex:1; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600;">Crear Perfil</button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    const nameInput = modal.querySelector('#modalVolunteerName');
-    const idInput = modal.querySelector('#modalVolunteerId');
-    const roleSelect = modal.querySelector('#modalRoleSelect');
-    const roleContainer = modal.querySelector('#roleSelectContainer');
-    const statusSelect = modal.querySelector('#modalStatusSelect');
-    const createBtn = modal.querySelector('#modalCreateBtn');
-    const cancelBtn = modal.querySelector('#modalCancelBtn');
-    
-    // Hide role dropdown for special IDs
-    idInput.addEventListener('input', () => {
-        const id = idInput.value;
-        if (id === '800744' || id === '900331' || id === '300281') {
-            roleContainer.style.display = 'none';
-        } else {
-            roleContainer.style.display = 'block';
-        }
-    });
-    
-    createBtn.onclick = () => {
-        const name = nameInput.value.trim();
-        const identidad = idInput.value.trim();
-        
-        if (!name) {
-            alert('❌ Por favor ingresa tu nombre completo');
-            return;
-        }
-        if (!identidad || identidad.length !== 6) {
-            alert('❌ Por favor ingresa los 6 dígitos de identidad');
-            return;
-        }
-        
-        // Check if profile already exists
-        const existing = VoluntarioProfiles.find(p => p.identidadSuffix === identidad);
-        if (existing) {
-            alert(`❌ Ya existe un perfil con el código ${identidad}`);
-            return;
-        }
-        
-        let rolNombre = '';
-        let rolId = '';
-        
-        // Auto-assign for special IDs
-        if (identidad === '800744') {
-            rolNombre = 'Subdirectora';
-            rolId = 'subdirectora';
-        } else if (identidad === '900331') {
-            rolNombre = 'Coordinadora Ferias Cívicas';
-            rolId = 'coord_eventos';
-        } else if (identidad === '300281') {
-            rolNombre = 'Técnico Auxiliar';
-            rolId = 'coord_observacion';
-        } else {
-            // Get selected role from dropdown
-            const selectedRoleId = roleSelect.value;
-            if (!selectedRoleId) {
-                alert('❌ Por favor selecciona un rol');
-                return;
-            }
-            const selectedRole = rolesDisponibles.find(r => r.id === selectedRoleId);
-            rolNombre = selectedRole.nombre;
-            rolId = selectedRole.id;
-        }
-        
-        const finalStatus = statusSelect.value;
-        
-        const newProfile = {
-            id: `Voluntario-${Date.now()}-${identidad}`,
-            name: name,
-            identidadSuffix: identidad,
-            rolNombre: rolNombre,
-            rolId: rolId,
-            totalHoras: 0,
-            actividadesCount: 0,
-            isPlaceholder: false,
-            mergedFrom: [],
-            status: finalStatus
-        };
-        
-        VoluntarioProfiles.push(newProfile);
-        unifiedSave();
-        renderProfileSelector();
-        actualizarListavoluntarios();
-        updateActivevoluntariosChart();
-        
-        // Auto-select this new user as current user
-        currentUser = newProfile;
-        renderProfileSelector();
-        
-        // Save current user to localStorage
-        const monthKey = getCurrentMonthKey();
-        
-        
-        alert(`✅ Perfil creado: ${name}\n🎭 Rol: ${rolNombre}\n🆔 ID: ${identidad}\n📊 Estado: ${finalStatus}`);
-        
-        modal.remove();
-    };
-    
-    cancelBtn.onclick = () => {
-        modal.remove();
-    };
-    
-    // Close modal when clicking outside
-    modal.onclick = (e) => {
-        if (e.target === modal) {
-            modal.remove();
-        }
-    };
 }
 
 function calculateProfileHoursFromActivities(profile) {
@@ -6176,78 +6029,53 @@ function updateCollaboratorsBarChart() {
 
 function updateActivevoluntariosChart() {
     const ctx = document.getElementById('chartActivevoluntarios')?.getContext('2d');
-    if (!ctx) {
-        console.log('Chart canvas not found');
-        return;
-    }
+    if (!ctx) return;
     
-    if (typeof activities === 'undefined' || !activities || activities.length === 0) {
-        if (window.activevoluntariosChart) window.activevoluntariosChart.destroy();
-        window.activevoluntariosChart = new Chart(ctx, {
-            type: 'bar',
-            data: { labels: ['Sin datos'], datasets: [{ data: [0], backgroundColor: '#E34A2F', label: 'Horas Totales' }] },
-            options: { responsive: true, maintainAspectRatio: true }
-        });
-        return;
-    }
+    // Use allActivities (full backend data) for chart
+    const sourceData = (typeof allActivities !== 'undefined' && allActivities.length > 0) ? allActivities : activities;
     
-    // Calculate hours per volunteer from activities
+    // Calculate hours per volunteer from ALL activities
     const volunteerHours = {};
     
-    activities.forEach(activity => {
-        const volunteerId = activity.createdBy;
-        const hours = activity.horas || 0;
-        
-        if (volunteerId) {
-            if (!volunteerHours[volunteerId]) {
-                volunteerHours[volunteerId] = 0;
+    if (sourceData.length > 0) {
+        sourceData.forEach(activity => {
+            if (activity.createdBy) {
+                let reporterId = activity.createdBy;
+                if (reporterId.includes('-')) {
+                    const parts = reporterId.split('-');
+                    const lastPart = parts[parts.length - 1];
+                    if (lastPart && lastPart.length === 6 && /^\d+$/.test(lastPart)) {
+                        reporterId = lastPart;
+                    }
+                }
+                
+                if (!volunteerHours[reporterId]) {
+                    volunteerHours[reporterId] = 0;
+                }
+                volunteerHours[reporterId] += activity.horas || 0;
             }
-            volunteerHours[volunteerId] += hours;
-        }
-    });
+        });
+    }
     
-    // Convert to array and sort
-    const volunteersArray = Object.entries(volunteerHours).map(([id, hours]) => ({ id, hours }));
+    const volunteersArray = Object.entries(volunteerHours).map(([suffixId, hours]) => ({ suffixId, hours }));
     const sortedVolunteers = volunteersArray.sort((a, b) => b.hours - a.hours).slice(0, 5);
     
-    // Extract suffix for labels
-    const labels = sortedVolunteers.map(v => {
-        if (v.id && typeof v.id === 'string') {
-            const parts = v.id.split('-');
-            const lastPart = parts[parts.length - 1];
-            if (lastPart && lastPart !== 'subdirector' && lastPart !== 'Voluntario') {
-                if (lastPart.length <= 6 && /^\d+$/.test(lastPart)) {
-                    return lastPart;
-                }
-                return lastPart.length > 6 ? lastPart.substring(0, 6) : lastPart;
-            }
-        }
-        return v.id ? v.id.substring(0, 6) : '---';
-    });
-    
+    const labels = sortedVolunteers.map(v => v.suffixId);
     const data = sortedVolunteers.map(v => v.hours);
     
     if (window.activevoluntariosChart) window.activevoluntariosChart.destroy();
     
     window.activevoluntariosChart = new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: data,
-                backgroundColor: '#E34A2F',
-                label: 'Horas Totales'
-            }]
-        },
+        data: { labels: labels, datasets: [{ data: data, backgroundColor: '#E34A2F', label: 'Horas Totales' }] },
         options: {
             responsive: true,
             maintainAspectRatio: true,
             plugins: {
-                legend: { position: 'top', labels: { font: { size: 10 } } }
+                legend: { position: 'top', labels: { font: { size: 10 } } },
+                tooltip: { callbacks: { label: (ctx) => `${ctx.raw.toFixed(2)} horas` } }
             },
-            scales: {
-                y: { beginAtZero: true, title: { display: true, text: 'Horas' } }
-            }
+            scales: { y: { beginAtZero: true, title: { display: true, text: 'Horas' }, ticks: { stepSize: 1 } } }
         }
     });
 }
@@ -6256,40 +6084,27 @@ function updateAtencionesPorGeneroChart() {
     const ctx = document.getElementById('chartAtencionesGenero')?.getContext('2d');
     if (!ctx) return;
     
-    if (typeof activities === 'undefined' || !activities.length) {
+    const sourceData = (typeof allActivities !== 'undefined' && allActivities.length > 0) ? allActivities : activities;
+    
+    if (!sourceData.length) {
         if (window.atencionesChart) window.atencionesChart.destroy();
         return;
     }
     
-    // Consolidate atenciones per event first (avoid duplicate counting of same event)
     const eventAtenciones = {};
     
-    activities.forEach(activity => {
+    sourceData.forEach(activity => {
         const eventKey = `${activity.date}_${activity.name}`;
-        
         if (!eventAtenciones[eventKey]) {
-            eventAtenciones[eventKey] = {
-                masculino: 0,
-                femenino: 0
-            };
+            eventAtenciones[eventKey] = { masculino: 0, femenino: 0 };
         }
-        
-        // Take the higher count per gender for this event (in case of duplicates)
         const hombres = activity.beneficiados_hombres || 0;
         const mujeres = activity.beneficiadas_mujeres || 0;
-        
-        if (hombres > eventAtenciones[eventKey].masculino) {
-            eventAtenciones[eventKey].masculino = hombres;
-        }
-        if (mujeres > eventAtenciones[eventKey].femenino) {
-            eventAtenciones[eventKey].femenino = mujeres;
-        }
+        if (hombres > eventAtenciones[eventKey].masculino) eventAtenciones[eventKey].masculino = hombres;
+        if (mujeres > eventAtenciones[eventKey].femenino) eventAtenciones[eventKey].femenino = mujeres;
     });
     
-    // Sum all unique events
-    let totalHombres = 0;
-    let totalMujeres = 0;
-    
+    let totalHombres = 0, totalMujeres = 0;
     Object.values(eventAtenciones).forEach(event => {
         totalHombres += event.masculino;
         totalMujeres += event.femenino;
@@ -6301,11 +6116,7 @@ function updateAtencionesPorGeneroChart() {
         type: 'doughnut',
         data: {
             labels: ['Masculino', 'Femenino'],
-            datasets: [{
-                data: [totalHombres, totalMujeres],
-                backgroundColor: ['#1E3A5F', '#E34A2F'],
-                borderWidth: 0
-            }]
+            datasets: [{ data: [totalHombres, totalMujeres], backgroundColor: ['#1E3A5F', '#E34A2F'], borderWidth: 0 }]
         },
         options: {
             responsive: true,
@@ -6322,61 +6133,39 @@ function updateAtencionesPorGeneroChart() {
                         }
                     }
                 },
-                legend: {
-                    position: 'bottom',
-                    labels: { 
-                        font: { size: 12 },
-                        padding: 15
-                    }
-                },
-                title: {
-                    display: true,
-                    text: 'Atenciones por Género',
-                    font: { size: 14, weight: 'bold' },
-                    padding: { bottom: 15 }
-                }
+                legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 15 } },
+                title: { display: true, text: 'Atenciones por Género', font: { size: 14, weight: 'bold' }, padding: { bottom: 15 } }
             }
         }
     });
 }
 
+
 function updateTiempoRequeridoChart() {
     const ctx = document.getElementById('chartTiempoRequerido')?.getContext('2d');
     if (!ctx) return;
     
-    if (typeof activities === 'undefined' || !activities.length) {
+    const sourceData = (typeof allActivities !== 'undefined' && allActivities.length > 0) ? allActivities : activities;
+    
+    if (!sourceData.length) {
         if (window.tiempoRequeridoChart) window.tiempoRequeridoChart.destroy();
         return;
     }
     
-    // Consolidate hours per event first (take highest per event to avoid duplicates)
     const eventHours = {};
-    
-    activities.forEach(activity => {
+    sourceData.forEach(activity => {
         const eventKey = `${activity.date}_${activity.name}`;
-        
-        if (!eventHours[eventKey]) {
-            eventHours[eventKey] = {
-                name: activity.name,
-                horas: 0
-            };
-        }
-        
+        if (!eventHours[eventKey]) eventHours[eventKey] = { name: activity.name, horas: 0 };
         const horas = activity.horas || 0;
-        if (horas > eventHours[eventKey].horas) {
-            eventHours[eventKey].horas = horas;
-        }
+        if (horas > eventHours[eventKey].horas) eventHours[eventKey].horas = horas;
     });
     
-    // Sum hours per activity name across unique events
     const totals = {};
     Object.values(eventHours).forEach(event => {
         totals[event.name] = (totals[event.name] || 0) + event.horas;
     });
     
-    const sorted = Object.entries(totals)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8);
+    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 8);
     
     if (window.tiempoRequeridoChart) window.tiempoRequeridoChart.destroy();
     
@@ -6384,56 +6173,20 @@ function updateTiempoRequeridoChart() {
         type: 'bar',
         data: {
             labels: sorted.map(s => s[0].length > 25 ? s[0].substring(0, 22) + '...' : s[0]),
-            datasets: [{
-                data: sorted.map(s => s[1]),
-                backgroundColor: '#1E3A5F',
-                label: 'Horas'
-            }]
+            datasets: [{ data: sorted.map(s => s[1]), backgroundColor: '#1E3A5F', label: 'Horas' }]
         },
         options: {
             indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return `Horas: ${context.raw.toFixed(2)}`;
-                        }
-                    }
-                },
-                legend: {
-                    position: 'top',
-                    labels: { font: { size: 10 } }
-                },
-                title: {
-                    display: true,
-                    text: 'Tiempo Requerido por Actividad',
-                    font: { size: 14, weight: 'bold' },
-                    padding: { bottom: 15 }
-                }
+                tooltip: { callbacks: { label: (ctx) => `Horas: ${ctx.raw.toFixed(2)}` } },
+                legend: { position: 'top', labels: { font: { size: 10 } } },
+                title: { display: true, text: 'Tiempo Requerido por Actividad', font: { size: 14, weight: 'bold' }, padding: { bottom: 15 } }
             },
             scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Horas',
-                        font: { size: 10, weight: 'bold' }
-                    },
-                    ticks: {
-                        beginAtZero: true,
-                        callback: function(value) {
-                            return value.toFixed(1);
-                        }
-                    }
-                },
-                y: {
-                    title: {
-                        display: false,
-                        text: 'Actividades',
-                        font: { size: 10, weight: 'bold' }
-                    }
-                }
+                x: { title: { display: true, text: 'Horas', font: { size: 10, weight: 'bold' } }, ticks: { beginAtZero: true, callback: (v) => v.toFixed(1) } },
+                y: { title: { display: false } }
             }
         }
     });
@@ -6684,20 +6437,16 @@ function unifiedSave() {
 
 
 // Single source for loading
-// Single source for loading
 async function unifiedLoad() {
     const monthKey = getCurrentMonthKey();
     
-    // ==========================================
-    // FIRST: Load current user and profile from localStorage
-    // ==========================================
+    // Load profiles from localStorage
     const savedProfiles = localStorage.getItem(`VoluntarioProfiles_${monthKey}`);
     if (savedProfiles) {
         try {
             VoluntarioProfiles = JSON.parse(savedProfiles);
             console.log(`✅ Loaded ${VoluntarioProfiles.length} profiles from localStorage`);
         } catch(e) {
-            console.error('Failed to load profiles:', e);
             VoluntarioProfiles = [];
         }
     } else {
@@ -6726,9 +6475,7 @@ async function unifiedLoad() {
         currentUser = null;
     }
     
-    // ==========================================
-    // SECOND: Fetch activities from backend and filter by current user's suffixId
-    // ==========================================
+    // Fetch activities from backend
     if (currentUser && currentUser.identidadSuffix) {
         console.log(`📡 Fetching activities for user: ${currentUser.identidadSuffix}`);
         
@@ -6737,13 +6484,12 @@ async function unifiedLoad() {
             
             if (response.ok) {
                 const data = await response.json();
-                const allActivities = data.activities || [];
+                // Store FULL data for charts
+                allActivities = data.activities || [];
                 
-                // FILTER: Only keep activities where createdBy matches current user's suffixId
+                // Filter for user's own activities
                 const myActivities = allActivities.filter(activity => {
-                    // Check if createdBy is the 6-digit suffix
                     if (activity.createdBy === currentUser.identidadSuffix) return true;
-                    // Check if createdBy contains the suffix (e.g., "Voluntario-123456-900331")
                     if (activity.createdBy && activity.createdBy.includes(currentUser.identidadSuffix)) return true;
                     return false;
                 });
@@ -6757,60 +6503,44 @@ async function unifiedLoad() {
                 
             } else {
                 console.warn('⚠️ Failed to fetch from backend, falling back to localStorage');
-                // Fallback to localStorage
                 const savedActivities = localStorage.getItem(`activities_${monthKey}`);
                 if (savedActivities) {
-                    try {
-                        activities = JSON.parse(savedActivities);
-                        console.log(`✅ Loaded ${activities.length} activities from localStorage (fallback)`);
-                    } catch(e) {
-                        activities = [];
-                    }
+                    activities = JSON.parse(savedActivities);
+                    allActivities = activities; // Fallback
                 } else {
                     activities = [];
+                    allActivities = [];
                 }
             }
         } catch (error) {
             console.error('❌ Backend fetch failed:', error);
-            // Fallback to localStorage
             const savedActivities = localStorage.getItem(`activities_${monthKey}`);
             if (savedActivities) {
-                try {
-                    activities = JSON.parse(savedActivities);
-                    console.log(`✅ Loaded ${activities.length} activities from localStorage (offline fallback)`);
-                } catch(e) {
-                    activities = [];
-                }
+                activities = JSON.parse(savedActivities);
+                allActivities = activities;
             } else {
                 activities = [];
+                allActivities = [];
             }
         }
     } else {
         // No current user, load from localStorage
-        console.log('⚠️ No current user, loading activities from localStorage');
         const savedActivities = localStorage.getItem(`activities_${monthKey}`);
         if (savedActivities) {
-            try {
-                activities = JSON.parse(savedActivities);
-                console.log(`✅ Loaded ${activities.length} activities from localStorage`);
-            } catch(e) {
-                activities = [];
-            }
+            activities = JSON.parse(savedActivities);
+            allActivities = activities;
         } else {
             activities = [];
+            allActivities = [];
         }
     }
     
-    // ==========================================
-    // THIRD: Sort activities by date
-    // ==========================================
+    // Sort activities
     if (typeof sortActivitiesByDate === 'function') {
         sortActivitiesByDate();
     }
     
-    // ==========================================
-    // FOURTH: Load description fields
-    // ==========================================
+    // Load description fields
     const savedDesc = localStorage.getItem(`desc_${monthKey}`);
     if (savedDesc) {
         try {
@@ -6819,13 +6549,10 @@ async function unifiedLoad() {
             if (document.getElementById('difficultiesText')) document.getElementById('difficultiesText').value = desc.difficulties || '';
             if (document.getElementById('recommendationsText')) document.getElementById('recommendationsText').value = desc.recommendations || '';
             if (document.getElementById('impactText')) document.getElementById('impactText').value = desc.impact || '';
-            console.log('✅ Loaded description fields');
-        } catch(e) {
-            console.error('Failed to load descriptions:', e);
-        }
+        } catch(e) {}
     }
     
-    console.log('✅ [UNIFIED] Load complete - activities:', activities.length, 'profiles:', VoluntarioProfiles.length);
+    console.log('✅ Load complete - my activities:', activities.length, 'all activities:', allActivities.length);
 }
 
 // Debounced save (prevents excessive writes)
