@@ -6856,6 +6856,407 @@ setInterval(() => {
 }, 30000);
 
 
+// EXPORT FUNCTIONS & REPORTS//
+//================================
+//================================
+// ==========================================
+// EXPORT FUNCTIONS (Excel)
+// ==========================================
+
+function exportToExcel(event) {
+    // Called by the "Exportar Excel" button
+    if (!currentUser) {
+        alert('❌ Primero debes seleccionar un usuario en el selector.');
+        return;
+    }
+    exportUserReport(currentUser);
+}
+
+async function exportUserReport(user) {
+    if (!user || !user.identidadSuffix) {
+        alert('❌ No hay usuario seleccionado o falta ID');
+        return;
+    }
+
+    showWizardLoading('Generando reporte consolidado...', 'Obteniendo datos del servidor');
+
+    try {
+        const dashboardResponse = await fetch('https://api.contranormdigital.com/api/tecno-civico/dashboard');
+
+        if (!dashboardResponse.ok) {
+            throw new Error('No se pudo obtener datos del servidor');
+        }
+
+        const dashboardData = await dashboardResponse.json();
+        hideWizardLoading();
+
+        // Always generate consolidated report (verifiable)
+        await generateConsolidatedUserReport(user, dashboardData);
+
+    } catch (error) {
+        console.error('Error fetching backend data:', error);
+        hideWizardLoading();
+
+        const shouldContinue = confirm(`⚠️ No se pudo conectar con el servidor central.\n\n¿Deseas generar tu reporte con los datos locales de tu dispositivo?\n\n⚠️ Este reporte NO será verificable por terceros.`);
+
+        if (shouldContinue) {
+            const localActivities = getLocalUserActivities(user);
+            generateLocalUserReport(user, localActivities);
+        }
+    }
+}
+
+function getLocalUserActivities(user) {
+    if (!activities || activities.length === 0) return [];
+
+    return activities.filter(activity => {
+        if (activity.createdBy === user.id) return true;
+
+        if (activity.voluntariosParticipants && activity.voluntariosParticipants.length > 0) {
+            return activity.voluntariosParticipants.some(p =>
+                (p.name && p.name.toLowerCase() === user.name?.toLowerCase()) ||
+                (p.identidadSuffix && p.identidadSuffix === user.identidadSuffix)
+            );
+        }
+
+        if (user.isPlaceholder && activity.voluntarias === 1 && !activity.voluntariosParticipants?.length) {
+            return true;
+        }
+
+        return false;
+    });
+}
+
+function generateLocalUserReport(user, userActivities) {
+    if (!userActivities || userActivities.length === 0) {
+        alert(`⚠️ ${user.name} no tiene actividades registradas en este mes`);
+        return;
+    }
+
+    const data = [];
+    const now = new Date();
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const currentMonth = monthNames[now.getMonth()];
+    const currentYear = now.getFullYear();
+    const calculatedTotalHours = userActivities.reduce((sum, act) => sum + (act.horas || 0), 0);
+    const hondurasDateTime = formatDateForDisplay(now, true);
+
+    // Header
+    data.push(["Comité Tecno-Cívico"]);
+    data.push(["Iniciativa de Voluntariado | IV-08"]);
+    data.push(["Honduras"]);
+    data.push([]);
+    data.push(["INFORME INDIVIDUAL"]);
+    data.push([`ACTIVIDADES REPORTADAS`]);
+    data.push([`⚠️ ESTE REPORTE NO ES VERIFICABLE POR TERCEROS ⚠️`]);
+    data.push([`Período: ${currentMonth} ${currentYear}`]);
+    data.push([`Reporte generado: ${hondurasDateTime}`]);
+    data.push([]);
+
+    // Volunteer data
+    data.push(["DATOS DE LA VOLUNTARIO/A"]);
+    data.push(["Nombre:", user.name]);
+    data.push(["ID:", user.identidadSuffix || 'No registrado']);
+    data.push(["Rol:", user.rolNombre]);
+    data.push(["Teléfono:", "_________________"]);
+    data.push(["Total Horas:", `${calculatedTotalHours.toFixed(2)} horas`]);
+    data.push(["Total Actividades:", userActivities.length]);
+    data.push([]);
+
+    // Feedback (description fields)
+    const monthKey = getCurrentMonthKey();
+    let feedback = { scope: '', difficulties: '', recommendations: '', impact: '' };
+    const savedDesc = localStorage.getItem(`desc_${monthKey}`);
+    if (savedDesc) {
+        try {
+            const desc = JSON.parse(savedDesc);
+            feedback = {
+                scope: desc.scope || '',
+                difficulties: desc.difficulties || '',
+                recommendations: desc.recommendations || '',
+                impact: desc.impact || ''
+            };
+        } catch(e) {}
+    }
+
+    if (feedback.scope || feedback.difficulties || feedback.recommendations || feedback.impact) {
+        data.push(["RETROALIMENTACIÓN DEL MES"]);
+        data.push([]);
+        if (feedback.scope) data.push(["📌 Alcance / Scope:", feedback.scope]);
+        if (feedback.difficulties) data.push(["⚠️ Dificultades Encontradas:", feedback.difficulties]);
+        if (feedback.recommendations) data.push(["💡 Recomendaciones:", feedback.recommendations]);
+        if (feedback.impact) data.push(["🌟 Impacto Generado:", feedback.impact]);
+        data.push([]);
+    }
+
+    // Activities
+    data.push(["DETALLE DE ACTIVIDADES"]);
+    data.push([]);
+    data.push(["N°", "FECHA", "ACTIVIDAD", "HORA INICIO", "HORA FIN", "DURACIÓN (min)", "DURACIÓN (hrs)", "BENEFICIARIAS (M)", "BENEFICIARIOS (H)"]);
+
+    const sortedActivities = [...userActivities].sort((a, b) => new Date(a.date) - new Date(b.date));
+    let totalMinutes = 0;
+
+    sortedActivities.forEach((activity, index) => {
+        const durationMinutes = Math.round((activity.horas || 0) * 60);
+        totalMinutes += durationMinutes;
+
+        data.push([
+            index + 1,
+            formatDateForDisplay(activity.date),
+            activity.name || '',
+            activity.startTime || '—',
+            activity.endTime || '—',
+            durationMinutes,
+            (activity.horas || 0).toFixed(2),
+            activity.beneficiadas_mujeres || 0,
+            activity.beneficiados_hombres || 0
+        ]);
+    });
+
+    const totalHoursDecimal = (totalMinutes / 60).toFixed(2);
+    data.push([]);
+    data.push(["RESUMEN TOTAL"]);
+    data.push(["Total Actividades:", userActivities.length]);
+    data.push(["Total Horas:", `${totalMinutes} minutos (${totalHoursDecimal} horas)`]);
+    data.push([]);
+    data.push(["NOTA:", "Este documento se genera automáticamente conforme a los registros reportado por el voluntario/a, miembro del Comite Tecno-Civico, IV-08."]);
+    data.push([]);
+
+    // Approval
+    data.push([]);
+    data.push(["APROBACIÓN"]);
+    data.push([]);
+    data.push(["Visto Bueno - Comité Organizador:", "_________________________"]);
+    data.push(["Visto Bueno - Consejo General:", "_________________________"]);
+    data.push([]);
+
+    // Footer
+    data.push([]);
+    data.push(["DOCUMENTO GENERADO AUTOMÁTICAMENTE"]);
+    data.push([`⚠️ ESTE DOCUMENTO NO ES VERIFICABLE POR TERCEROS ⚠️`]);
+    data.push([`Para un reporte oficial verificable, asegúrese de tener conexión a internet.`]);
+    data.push([`Fecha y hora de emisión (Honduras): ${hondurasDateTime}`]);
+    data.push([`Generado por: ${user.name} (${user.rolNombre})`]);
+    data.push([`Sitio web oficial: https://tecno-civico.org`]);
+    data.push([`Fuente: Datos locales del dispositivo`]);
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [
+        { wch: 6 }, { wch: 12 }, { wch: 40 }, { wch: 12 }, { wch: 12 },
+        { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 18 }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const fileName = `reporte_local_${user.name.replace(/\s/g, '_')}_${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}.xlsx`;
+    XLSX.utils.book_append_sheet(wb, ws, `Mis Reportes - ${user.name}`);
+    XLSX.writeFile(wb, fileName);
+
+    alert(`✅ Reporte LOCAL generado para ${user.name}\n📊 ${userActivities.length} actividades\n⏱️ Total: ${totalMinutes} minutos (${totalHoursDecimal} horas)\n\n⚠️ Este reporte NO es verificable por terceros.`);
+}
+
+async function generateConsolidatedUserReport(user, dashboardData) {
+    showWizardLoading('Generando reporte consolidado...', 'Obteniendo datos del servidor');
+
+    try {
+        const activitiesResponse = await fetch('https://api.contranormdigital.com/api/tecno-civico/activities');
+
+        if (!activitiesResponse.ok) {
+            throw new Error('No se pudieron obtener las actividades');
+        }
+
+        const activitiesData = await activitiesResponse.json();
+        const allActivities = activitiesData.activities || [];
+
+        // Find activities where user contributed or participated
+        const userContributingActivities = allActivities.filter(activity => {
+            const contributing = activity.contributingVolunteers || [];
+            return contributing.includes(user.identidadSuffix);
+        });
+
+        const userParticipantActivities = allActivities.filter(activity => {
+            const participants = activity.voluntariosParticipants || [];
+            return participants.some(p =>
+                p.identidadSuffix === user.identidadSuffix ||
+                (p.name && p.name.toLowerCase() === user.name?.toLowerCase())
+            );
+        });
+
+        const activityMap = new Map();
+        [...userContributingActivities, ...userParticipantActivities].forEach(act => {
+            if (!activityMap.has(act.id)) {
+                activityMap.set(act.id, act);
+            }
+        });
+
+        const consolidatedActivities = Array.from(activityMap.values());
+        const totalHours = consolidatedActivities.reduce((sum, act) => sum + (act.horas || 0), 0);
+
+        // Generate verification token
+        const now = new Date();
+        const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const currentMonth = monthNames[now.getMonth()];
+        const currentYear = now.getFullYear();
+
+        let verificationToken = null;
+        let verificationLink = '';
+
+        try {
+            const tokenResponse = await fetch('https://api.contranormdigital.com/api/tecno-civico/generate-verification-token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    volunteerId: user.identidadSuffix,
+                    month: currentMonth,
+                    year: currentYear,
+                    hours: totalHours
+                })
+            });
+
+            if (tokenResponse.ok) {
+                const tokenData = await tokenResponse.json();
+                verificationToken = tokenData.token;
+                verificationLink = `https://tecno-civico.org/verify?token=${encodeURIComponent(verificationToken)}`;
+                console.log('✅ Verification token generated');
+            } else {
+                console.warn('Failed to generate verification token');
+            }
+        } catch (tokenError) {
+            console.error('Error generating verification token:', tokenError);
+        }
+
+        hideWizardLoading();
+
+        if (consolidatedActivities.length === 0) {
+            alert(`⚠️ ${user.name} no tiene actividades registradas en el sistema central`);
+            return;
+        }
+
+        const data = [];
+        const hondurasDateTime = formatDateForDisplay(now, true);
+
+        // Header
+        data.push(["Comité Tecno-Cívico"]);
+        data.push(["Iniciativa de Voluntariado | IV-08"]);
+        data.push(["Honduras"]);
+        data.push([]);
+        data.push(["INFORME INDIVIDUAL DE VOLUNTARIA - COMPLETO"]);
+        data.push([`Tipo: REPORTE CONSOLIDADO (incluye cuando otros te reportaron)`]);
+        data.push([`✅ DOCUMENTO VERIFICABLE POR TERCEROS ✅`]);
+        data.push([`Período: ${currentMonth} ${currentYear}`]);
+        data.push([`Reporte generado: ${hondurasDateTime}`]);
+        data.push([]);
+
+        // Volunteer data
+        data.push(["DATOS DE LA VOLUNTARIA"]);
+        data.push(["Nombre:", user.name]);
+        data.push(["ID:", user.identidadSuffix || 'No registrado']);
+        data.push(["Rol:", user.rolNombre]);
+        data.push(["Teléfono:", "_________________"]);
+        data.push(["Total Horas (consolidado):", `${totalHours.toFixed(2)} horas`]);
+        data.push(["Total Actividades (consolidado):", consolidatedActivities.length]);
+
+        const backendVolunteer = dashboardData.volunteers?.[user.identidadSuffix];
+        if (backendVolunteer) {
+            data.push(["Actividades en sistema:", backendVolunteer.activities || 0]);
+        }
+        data.push([]);
+
+        // Activities
+        data.push(["DETALLE DE ACTIVIDADES"]);
+        data.push([]);
+        data.push(["N°", "FECHA", "ACTIVIDAD", "REPORTADO POR", "HORA INICIO", "HORA FIN", "DURACIÓN (hrs)", "BENEFICIARIAS", "BENEFICIARIOS"]);
+
+        const sortedActivities = [...consolidatedActivities].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        sortedActivities.forEach((activity, index) => {
+            const isOwnReport = activity.createdBy === user.id ||
+                               (activity.createdByName && activity.createdByName.toLowerCase() === user.name?.toLowerCase());
+
+            data.push([
+                index + 1,
+                formatDateForDisplay(activity.date),
+                activity.name || '',
+                isOwnReport ? '✅ Yo misma' : `👤 ${activity.createdByName || 'Otra voluntaria'}`,
+                activity.startTime || '—',
+                activity.endTime || '—',
+                (activity.horas || 0).toFixed(2),
+                activity.beneficiadas_mujeres || 0,
+                activity.beneficiados_hombres || 0
+            ]);
+        });
+
+        const ownReports = sortedActivities.filter(a => a.createdBy === user.id).length;
+        const othersReports = sortedActivities.length - ownReports;
+
+        data.push([]);
+        data.push(["RESUMEN TOTAL"]);
+        data.push(["Total Actividades:", consolidatedActivities.length]);
+        data.push(["Total Horas:", `${totalHours.toFixed(2)} horas`]);
+        data.push([]);
+        data.push(["DESGLOSE"]);
+        data.push(["Actividades que reportaste:", ownReports]);
+        data.push(["Actividades donde otros te reportaron:", othersReports]);
+        data.push([]);
+        data.push(["NOTA:", "Este reporte incluye TODAS las actividades donde participaste,"]);
+        data.push(["", "tanto las que reportaste personalmente como aquellas donde"]);
+        data.push(["", "otras voluntarias te incluyeron como participante."]);
+        data.push([]);
+
+        // Approval
+        data.push([]);
+        data.push(["APROBACIÓN"]);
+        data.push([]);
+        data.push(["Visto Bueno - Comité Organizador:", "_________________________"]);
+        data.push(["Visto Bueno - Consejo General:", "_________________________"]);
+        data.push([]);
+
+        // Footer with verification link
+        data.push([]);
+        data.push(["DOCUMENTO GENERADO AUTOMÁTICAMENTE"]);
+        data.push([`✅ Este documento es VERIFICABLE por terceros ✅`]);
+        data.push([`Fecha y hora de emisión (Honduras): ${hondurasDateTime}`]);
+        data.push([`Generado por: ${user.name} (${user.rolNombre})`]);
+        data.push([`Sitio web oficial: https://tecno-civico.org`]);
+
+        if (verificationLink) {
+            data.push([]);
+            data.push(["VERIFICACIÓN OFICIAL"]);
+            data.push([`Verifique este documento en: ${verificationLink}`]);
+            data.push([`Este documento expira en 3 años a partir de su emisión.`]);
+        } else {
+            data.push([]);
+            data.push(["⚠️ VERIFICACIÓN NO DISPONIBLE ⚠️"]);
+            data.push([`No se pudo generar el enlace de verificación. Intente nuevamente.`]);
+        }
+
+        data.push([`Fuente: Sistema central consolidado (${consolidatedActivities.length} actividades)`]);
+
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        ws['!cols'] = [
+            { wch: 6 }, { wch: 12 }, { wch: 35 }, { wch: 20 }, { wch: 12 },
+            { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }
+        ];
+
+        const wb = XLSX.utils.book_new();
+        const fileName = `reporte_consolidado_${user.name.replace(/\s/g, '_')}_${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}.xlsx`;
+        XLSX.utils.book_append_sheet(wb, ws, `Reporte Consolidado - ${user.name}`);
+        XLSX.writeFile(wb, fileName);
+
+        alert(`✅ Reporte CONSOLIDADO VERIFICABLE generado para ${user.name}\n📊 ${consolidatedActivities.length} actividades totales\n⏱️ ${totalHours.toFixed(2)} horas (${ownReports} tuyas + ${othersReports} de otras voluntarias)\n\n✅ Este reporte incluye enlace de verificación oficial.`);
+
+    } catch (error) {
+        console.error('Error generating consolidated report:', error);
+        hideWizardLoading();
+        alert(`❌ Error al generar reporte consolidado: ${error.message}\n\nGenerando reporte local como alternativa...`);
+
+        const localActivities = getLocalUserActivities(user);
+        generateLocalUserReport(user, localActivities);
+    }
+}
+
 </script>
 
 
