@@ -1591,7 +1591,7 @@ body {
 // ==========================================
 // GLOBAL STATE
 // ==========================================
-const APP_VERSION = 'Informe-Tecnico-v2.1.7';
+const APP_VERSION = 'Informe-Tecnico-v2.1.8';
 let allActivities = [];  
 let activities = [];     
 let voluntariosActivos = [];
@@ -1897,95 +1897,6 @@ function normalizeName(str) {
         .replace(/[^a-z0-9]/g, '_')       // Replace special chars with underscore
         .replace(/_+/g, '_')              // Remove multiple underscores
         .replace(/^_|_$/g, '');           // Trim underscores
-}
-
-function updateGlobalKPIs() {
-    // Get current user's suffix
-    const userSuffix = currentUser?.identidadSuffix;
-    
-    // For voluntarios activos - use allActivities (full backend data)
-    let uniqueReporters = new Set();
-    if (typeof allActivities !== 'undefined' && allActivities.length > 0) {
-        allActivities.forEach(activity => {
-            if (activity.createdBy) {
-                let reporterId = activity.createdBy;
-                if (reporterId.includes('-')) {
-                    const parts = reporterId.split('-');
-                    const lastPart = parts[parts.length - 1];
-                    if (lastPart && lastPart.length === 6 && /^\d+$/.test(lastPart)) {
-                        reporterId = lastPart;
-                    }
-                }
-                uniqueReporters.add(reporterId);
-            }
-        });
-    } else if (typeof activities !== 'undefined' && activities.length > 0) {
-        // Fallback to activities if allActivities is empty
-        activities.forEach(activity => {
-            if (activity.createdBy) {
-                let reporterId = activity.createdBy;
-                if (reporterId.includes('-')) {
-                    const parts = reporterId.split('-');
-                    const lastPart = parts[parts.length - 1];
-                    if (lastPart && lastPart.length === 6 && /^\d+$/.test(lastPart)) {
-                        reporterId = lastPart;
-                    }
-                }
-                uniqueReporters.add(reporterId);
-            }
-        });
-    }
-    
-    // For personalized KPIs - use filtered activities (user's own data)
-    let myTotalHoras = 0;
-    let myTotalHorasFilial = 0;
-    let myTotalHorasCampo = 0;
-    let myTotalActividades = 0;
-    let myTotalMujeres = 0;
-    let myTotalHombres = 0;
-    
-    if (typeof activities !== 'undefined' && activities.length > 0 && userSuffix) {
-        activities.forEach(activity => {
-            const isOwnActivity = (activity.createdBy === userSuffix) || 
-                                 (activity.createdBy && activity.createdBy.includes(userSuffix));
-            
-            if (isOwnActivity) {
-                myTotalHoras += activity.horas || 0;
-                myTotalMujeres += activity.beneficiadas_mujeres || 0;
-                myTotalHombres += activity.beneficiados_hombres || 0;
-                myTotalActividades++;
-                
-                if (activity.actionType === 'filial') {
-                    myTotalHorasFilial += activity.horas || 0;
-                } else if (activity.actionType === 'campo') {
-                    myTotalHorasCampo += activity.horas || 0;
-                }
-            }
-        });
-    }
-    
-    // Update DOM elements (with fallback to 0 if no data)
-    const totalHorasEl = document.getElementById('totalHoras');
-    const totalHorasFilialEl = document.getElementById('totalHorasFilial');
-    const totalHorasCampoEl = document.getElementById('totalHorasCampo');
-    const totalActividadesEl = document.getElementById('totalActividades');
-    const totalBeneficiadosEl = document.getElementById('totalBeneficiados');
-    const totalMujeresBenEl = document.getElementById('totalMujeresBen');
-    const totalHombresBenEl = document.getElementById('totalHombresBen');
-    const totalVoluntariosActivosEl = document.getElementById('totalvoluntariosActivos');
-    
-    if (totalHorasEl) totalHorasEl.innerText = myTotalHoras.toFixed(2);
-    if (totalHorasFilialEl) totalHorasFilialEl.innerText = myTotalHorasFilial.toFixed(2);
-    if (totalHorasCampoEl) totalHorasCampoEl.innerText = myTotalHorasCampo.toFixed(2);
-    if (totalActividadesEl) totalActividadesEl.innerText = myTotalActividades;
-    if (totalBeneficiadosEl) totalBeneficiadosEl.innerText = myTotalMujeres + myTotalHombres;
-    if (totalMujeresBenEl) totalMujeresBenEl.innerText = myTotalMujeres;
-    if (totalHombresBenEl) totalHombresBenEl.innerText = myTotalHombres;
-    
-    // Voluntarios activos from allActivities (full backend data)
-    if (totalVoluntariosActivosEl) {
-        totalVoluntariosActivosEl.innerText = uniqueReporters.size;
-    }
 }
 
 
@@ -6056,6 +5967,138 @@ function getRealHoursFromActivities(profile) {
     return total;
 }
 
+function updateActivevoluntariosChart() {
+    const ctx = document.getElementById('chartActivevoluntarios')?.getContext('2d');
+    if (!ctx) return;
+    
+    if (!currentMonthDashboardData || !currentMonthDashboardData.volunteers || currentMonthDashboardData.volunteers.length === 0) {
+        if (window.activevoluntariosChart) window.activevoluntariosChart.destroy();
+        return;
+    }
+    
+    // Top 5 volunteers by hours from dashboard data
+    const topVolunteers = currentMonthDashboardData.volunteers.slice(0, 5);
+    const labels = topVolunteers.map(v => v.id);  // Suffix ID only
+    const data = topVolunteers.map(v => parseFloat(v.hours));
+    
+    if (window.activevoluntariosChart) window.activevoluntariosChart.destroy();
+    
+    window.activevoluntariosChart = new Chart(ctx, {
+        type: 'bar',
+        data: { 
+            labels: labels, 
+            datasets: [{ 
+                data: data, 
+                backgroundColor: '#E34A2F', 
+                label: 'Horas Totales' 
+            }] 
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 10 } } },
+                tooltip: { callbacks: { label: (ctx) => `${ctx.raw.toFixed(2)} horas` } }
+            },
+            scales: { y: { beginAtZero: true, title: { display: true, text: 'Horas' }, ticks: { stepSize: 1 } } }
+        }
+    });
+}
+
+function updateAtencionesPorGeneroChart() {
+    const ctx = document.getElementById('chartAtencionesGenero')?.getContext('2d');
+    if (!ctx) return;
+    
+    if (!currentMonthDashboardData) {
+        if (window.atencionesChart) window.atencionesChart.destroy();
+        return;
+    }
+    
+    const totalMen = currentMonthDashboardData.genderBreakdown?.men || 0;
+    const totalWomen = currentMonthDashboardData.genderBreakdown?.women || 0;
+    const totalOther = currentMonthDashboardData.genderBreakdown?.other || 0;
+    
+    const labels = ['Masculino', 'Femenino'];
+    const data = [totalMen, totalWomen];
+    
+    if (totalOther > 0) {
+        labels.push('No especificado');
+        data.push(totalOther);
+    }
+    
+    if (window.atencionesChart) window.atencionesChart.destroy();
+    
+    window.atencionesChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{ 
+                data: data, 
+                backgroundColor: ['#1E3A5F', '#E34A2F', '#9E9E9E'], 
+                borderWidth: 0 
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.raw || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${label}: ${value} voluntarios (${percentage}%)`;
+                        }
+                    }
+                },
+                legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 15 } },
+                title: { display: true, text: 'Voluntarios por Género', font: { size: 14, weight: 'bold' }, padding: { bottom: 15 } }
+            }
+        }
+    });
+}
+
+function updateTiempoRequeridoChart() {
+    const ctx = document.getElementById('chartTiempoRequerido')?.getContext('2d');
+    if (!ctx) return;
+    
+    if (!currentMonthDashboardData || !currentMonthDashboardData.activityHours || currentMonthDashboardData.activityHours.length === 0) {
+        if (window.tiempoRequeridoChart) window.tiempoRequeridoChart.destroy();
+        return;
+    }
+    
+    const activityHours = currentMonthDashboardData.activityHours.slice(0, 8);
+    const labels = activityHours.map(a => a.name.length > 25 ? a.name.substring(0, 22) + '...' : a.name);
+    const data = activityHours.map(a => parseFloat(a.hours));
+    
+    if (window.tiempoRequeridoChart) window.tiempoRequeridoChart.destroy();
+    
+    window.tiempoRequeridoChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{ data: data, backgroundColor: '#1E3A5F', label: 'Horas' }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: { callbacks: { label: (ctx) => `Horas: ${ctx.raw.toFixed(2)}` } },
+                legend: { position: 'top', labels: { font: { size: 10 } } },
+                title: { display: true, text: 'Tiempo Requerido por Actividad', font: { size: 14, weight: 'bold' }, padding: { bottom: 15 } }
+            },
+            scales: {
+                x: { title: { display: true, text: 'Horas', font: { size: 10, weight: 'bold' } }, ticks: { beginAtZero: true, callback: (v) => v.toFixed(1) } },
+                y: { title: { display: false } }
+            }
+        }
+    });
+}
+
+
 function updateCollaboratorsBarChart() {
     const ctx = document.getElementById('chartActivityResources')?.getContext('2d');
     if (!ctx) return;
@@ -6065,7 +6108,7 @@ function updateCollaboratorsBarChart() {
         return;
     }
     
-    // Collect data per activity
+    // Collect data per activity from user's own activities
     const activityData = {};
     
     activities.forEach(activity => {
@@ -6078,12 +6121,9 @@ function updateCollaboratorsBarChart() {
             };
         }
         
-        // Count voluntarios - voluntarias count already includes all participants
-        // (the reporting user + additional voluntarios)
         let voluntariosCount = activity.voluntarias || 0;
         activityData[activityName].voluntarios += voluntariosCount;
         
-        // Count Collaborators (sum of all colaboradores for this activity)
         let colaboradoresCount = 0;
         if (activity.colaboradores && activity.colaboradores.length > 0) {
             activity.colaboradores.forEach(col => {
@@ -6093,7 +6133,6 @@ function updateCollaboratorsBarChart() {
         activityData[activityName].colaboradores += colaboradoresCount;
     });
     
-    // Convert to arrays for chart, sort by total participants
     const sortedActivities = Object.entries(activityData)
         .map(([name, data]) => ({
             name,
@@ -6102,7 +6141,7 @@ function updateCollaboratorsBarChart() {
             total: data.voluntarios + data.colaboradores
         }))
         .sort((a, b) => b.total - a.total)
-        .slice(0, 10); // Top 10 activities
+        .slice(0, 10);
     
     if (window.activityResourceChart) window.activityResourceChart.destroy();
     
@@ -6112,7 +6151,7 @@ function updateCollaboratorsBarChart() {
             labels: sortedActivities.map(a => a.name.length > 30 ? a.name.substring(0, 27) + '...' : a.name),
             datasets: [
                 {
-                    label: 'voluntarios Voluntarias',
+                    label: 'Voluntarias Participantes',
                     data: sortedActivities.map(a => a.voluntarios),
                     backgroundColor: '#E34A2F',
                     borderColor: '#c03d1f',
@@ -6130,7 +6169,7 @@ function updateCollaboratorsBarChart() {
             ]
         },
         options: {
-            indexAxis: 'y', // Horizontal bars
+            indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
@@ -6153,7 +6192,7 @@ function updateCollaboratorsBarChart() {
                 },
                 title: {
                     display: true,
-                    text: 'Recursos por Actividad',
+                    text: 'Recursos por Actividad (Tus actividades)',
                     font: { size: 14, weight: 'bold' },
                     padding: { bottom: 15 }
                 }
@@ -6177,9 +6216,7 @@ function updateCollaboratorsBarChart() {
                 },
                 y: {
                     title: {
-                        display: false,
-                        text: 'Actividades',
-                        font: { size: 10, weight: 'bold' }
+                        display: false
                     },
                     ticks: {
                         font: { size: 10 }
@@ -6201,178 +6238,19 @@ function updateCollaboratorsBarChart() {
     });
 }
 
-function updateActivevoluntariosChart() {
-    const ctx = document.getElementById('chartActivevoluntarios')?.getContext('2d');
-    if (!ctx) return;
-    
-    // Use allActivities (full backend data) for chart
-    const sourceData = (typeof allActivities !== 'undefined' && allActivities.length > 0) ? allActivities : activities;
-    
-    // Calculate hours per volunteer from ALL activities
-    const volunteerHours = {};
-    
-    if (sourceData.length > 0) {
-        sourceData.forEach(activity => {
-            if (activity.createdBy) {
-                let reporterId = activity.createdBy;
-                if (reporterId.includes('-')) {
-                    const parts = reporterId.split('-');
-                    const lastPart = parts[parts.length - 1];
-                    if (lastPart && lastPart.length === 6 && /^\d+$/.test(lastPart)) {
-                        reporterId = lastPart;
-                    }
-                }
-                
-                if (!volunteerHours[reporterId]) {
-                    volunteerHours[reporterId] = 0;
-                }
-                volunteerHours[reporterId] += activity.horas || 0;
-            }
-        });
-    }
-    
-    const volunteersArray = Object.entries(volunteerHours).map(([suffixId, hours]) => ({ suffixId, hours }));
-    const sortedVolunteers = volunteersArray.sort((a, b) => b.hours - a.hours).slice(0, 5);
-    
-    const labels = sortedVolunteers.map(v => v.suffixId);
-    const data = sortedVolunteers.map(v => v.hours);
-    
-    if (window.activevoluntariosChart) window.activevoluntariosChart.destroy();
-    
-    window.activevoluntariosChart = new Chart(ctx, {
-        type: 'bar',
-        data: { labels: labels, datasets: [{ data: data, backgroundColor: '#E34A2F', label: 'Horas Totales' }] },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: { position: 'top', labels: { font: { size: 10 } } },
-                tooltip: { callbacks: { label: (ctx) => `${ctx.raw.toFixed(2)} horas` } }
-            },
-            scales: { y: { beginAtZero: true, title: { display: true, text: 'Horas' }, ticks: { stepSize: 1 } } }
-        }
-    });
-}
-
-function updateAtencionesPorGeneroChart() {
-    const ctx = document.getElementById('chartAtencionesGenero')?.getContext('2d');
-    if (!ctx) return;
-    
-    const sourceData = (typeof allActivities !== 'undefined' && allActivities.length > 0) ? allActivities : activities;
-    
-    if (!sourceData.length) {
-        if (window.atencionesChart) window.atencionesChart.destroy();
-        return;
-    }
-    
-    const eventAtenciones = {};
-    
-    sourceData.forEach(activity => {
-        const eventKey = `${activity.date}_${activity.name}`;
-        if (!eventAtenciones[eventKey]) {
-            eventAtenciones[eventKey] = { masculino: 0, femenino: 0 };
-        }
-        const hombres = activity.beneficiados_hombres || 0;
-        const mujeres = activity.beneficiadas_mujeres || 0;
-        if (hombres > eventAtenciones[eventKey].masculino) eventAtenciones[eventKey].masculino = hombres;
-        if (mujeres > eventAtenciones[eventKey].femenino) eventAtenciones[eventKey].femenino = mujeres;
-    });
-    
-    let totalHombres = 0, totalMujeres = 0;
-    Object.values(eventAtenciones).forEach(event => {
-        totalHombres += event.masculino;
-        totalMujeres += event.femenino;
-    });
-    
-    if (window.atencionesChart) window.atencionesChart.destroy();
-    
-    window.atencionesChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Masculino', 'Femenino'],
-            datasets: [{ data: [totalHombres, totalMujeres], backgroundColor: ['#1E3A5F', '#E34A2F'], borderWidth: 0 }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const label = context.label || '';
-                            const value = context.raw || 0;
-                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                            return `${label}: ${value} atenciones (${percentage}%)`;
-                        }
-                    }
-                },
-                legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 15 } },
-                title: { display: true, text: 'Atenciones por Género', font: { size: 14, weight: 'bold' }, padding: { bottom: 15 } }
-            }
-        }
-    });
-}
-
-
-function updateTiempoRequeridoChart() {
-    const ctx = document.getElementById('chartTiempoRequerido')?.getContext('2d');
-    if (!ctx) return;
-    
-    const sourceData = (typeof allActivities !== 'undefined' && allActivities.length > 0) ? allActivities : activities;
-    
-    if (!sourceData.length) {
-        if (window.tiempoRequeridoChart) window.tiempoRequeridoChart.destroy();
-        return;
-    }
-    
-    const eventHours = {};
-    sourceData.forEach(activity => {
-        const eventKey = `${activity.date}_${activity.name}`;
-        if (!eventHours[eventKey]) eventHours[eventKey] = { name: activity.name, horas: 0 };
-        const horas = activity.horas || 0;
-        if (horas > eventHours[eventKey].horas) eventHours[eventKey].horas = horas;
-    });
-    
-    const totals = {};
-    Object.values(eventHours).forEach(event => {
-        totals[event.name] = (totals[event.name] || 0) + event.horas;
-    });
-    
-    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 8);
-    
-    if (window.tiempoRequeridoChart) window.tiempoRequeridoChart.destroy();
-    
-    window.tiempoRequeridoChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: sorted.map(s => s[0].length > 25 ? s[0].substring(0, 22) + '...' : s[0]),
-            datasets: [{ data: sorted.map(s => s[1]), backgroundColor: '#1E3A5F', label: 'Horas' }]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                tooltip: { callbacks: { label: (ctx) => `Horas: ${ctx.raw.toFixed(2)}` } },
-                legend: { position: 'top', labels: { font: { size: 10 } } },
-                title: { display: true, text: 'Tiempo Requerido por Actividad', font: { size: 14, weight: 'bold' }, padding: { bottom: 15 } }
-            },
-            scales: {
-                x: { title: { display: true, text: 'Horas', font: { size: 10, weight: 'bold' } }, ticks: { beginAtZero: true, callback: (v) => v.toFixed(1) } },
-                y: { title: { display: false } }
-            }
-        }
-    });
-}
-
-function updateCharts() {
+async function updateCharts() {
     if (typeof activities === 'undefined') return;
-    updateAtencionesPorGeneroChart();     // Atenciones by gender
-    updateTiempoRequeridoChart();         // Time required per activity
-    updateCollaboratorsBarChart();        // voluntarios + Collaborators per activity
-    updateActivevoluntariosChart();             // Individual voluntarios hours (now uses real data)
+    
+    // Fetch fresh dashboard data for charts that need group data
+    await fetchCurrentMonthDashboard();
+    
+    // Update all charts
+    updateAtencionesPorGeneroChart();     // Uses dashboard data (group)
+    updateTiempoRequeridoChart();         // Uses dashboard data (group)
+    updateCollaboratorsBarChart();        // Uses user's own activities
+    updateActivevoluntariosChart();       // Uses dashboard data (group)
 }
+
 // ==========================================
 // OTHER FUNCTIONS
 // ==========================================
@@ -6654,12 +6532,12 @@ async function unifiedLoad() {
         console.log(`📡 Fetching activities for user: ${currentUser.identidadSuffix}`);
         
         try {
-            const response = await fetch('https://api.contranormdigital.com/api/tecno-civico/activities');
+            const response = await fetch('const response = await fetch(`https://api.contranormdigital.com/api/volunteers/report/individual/${currentUser.identidadSuffix}?month=${monthKey}`);');
             
             if (response.ok) {
                 const data = await response.json();
                 // Store FULL data for charts
-                allActivities = data.activities || [];
+                allActivities = result.data.activities || [];
                 
                 // Filter for user's own activities
                 const myActivities = allActivities.filter(activity => {
@@ -6730,7 +6608,7 @@ async function unifiedLoad() {
     if (typeof renderActivities === 'function') renderActivities();
     if (typeof initProfileSystem === 'function') initProfileSystem();
     if (typeof renderProfileSelector === 'function') renderProfileSelector();  // ADDED
-    if (typeof updateCharts === 'function') updateCharts();
+    if (typeof updateCharts === 'function') await updateCharts();
     if (typeof updateGlobalKPIs === 'function') updateGlobalKPIs();
     
     console.log('✅ Load complete - my activities:', activities.length, 'all activities:', allActivities.length);
@@ -6800,33 +6678,91 @@ function isCurrentUserInActivity(activity, currentUser) {
     return false;
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    // First, load all data from backend and localStorage (includes all rendering)
-    await unifiedLoad();
+
+// ==========================================
+// GLOBAL FUNCTION - define once, call anywhere
+// ==========================================
+function updateGlobalKPIs() {
+    const userSuffix = currentUser?.identidadSuffix;
     
-    // Check month change after loading
+    // VOLUNTARIOS ACTIVOS - from dashboard (group data for current month)
+    const totalVoluntariosActivosEl = document.getElementById('totalvoluntariosActivos');
+    if (totalVoluntariosActivosEl && currentMonthDashboardData) {
+        totalVoluntariosActivosEl.innerText = currentMonthDashboardData.totalVolunteers;
+    } else if (totalVoluntariosActivosEl) {
+        totalVoluntariosActivosEl.innerText = '0';
+    }
+    
+    // USER-SPECIFIC KPIs - from activities array
+    let myTotalHoras = 0;
+    let myTotalHorasFilial = 0;
+    let myTotalHorasCampo = 0;
+    let myTotalActividades = 0;
+    let myTotalMujeres = 0;
+    let myTotalHombres = 0;
+    
+    if (typeof activities !== 'undefined' && activities.length > 0 && userSuffix) {
+        activities.forEach(activity => {
+            const isOwnActivity = (activity.createdBy === userSuffix) || 
+                                 (activity.createdBy && activity.createdBy.includes(userSuffix));
+            
+            if (isOwnActivity) {
+                myTotalHoras += activity.horas || 0;
+                myTotalMujeres += activity.beneficiadas_mujeres || 0;
+                myTotalHombres += activity.beneficiados_hombres || 0;
+                myTotalActividades++;
+                
+                if (activity.actionType === 'filial') {
+                    myTotalHorasFilial += activity.horas || 0;
+                } else if (activity.actionType === 'campo') {
+                    myTotalHorasCampo += activity.horas || 0;
+                }
+            }
+        });
+    }
+    
+    // Update DOM elements
+    const totalHorasEl = document.getElementById('totalHoras');
+    const totalHorasFilialEl = document.getElementById('totalHorasFilial');
+    const totalHorasCampoEl = document.getElementById('totalHorasCampo');
+    const totalActividadesEl = document.getElementById('totalActividades');
+    const totalBeneficiadosEl = document.getElementById('totalBeneficiados');
+    const totalMujeresBenEl = document.getElementById('totalMujeresBen');
+    const totalHombresBenEl = document.getElementById('totalHombresBen');
+    
+    if (totalHorasEl) totalHorasEl.innerText = myTotalHoras.toFixed(2);
+    if (totalHorasFilialEl) totalHorasFilialEl.innerText = myTotalHorasFilial.toFixed(2);
+    if (totalHorasCampoEl) totalHorasCampoEl.innerText = myTotalHorasCampo.toFixed(2);
+    if (totalActividadesEl) totalActividadesEl.innerText = myTotalActividades;
+    if (totalBeneficiadosEl) totalBeneficiadosEl.innerText = myTotalMujeres + myTotalHombres;
+    if (totalMujeresBenEl) totalMujeresBenEl.innerText = myTotalMujeres;
+    if (totalHombresBenEl) totalHombresBenEl.innerText = myTotalHombres;
+}
+
+// ==========================================
+// DOMContentLoaded - just initialization
+// ==========================================
+document.addEventListener('DOMContentLoaded', async () => {
+    await unifiedLoad();
     await checkAndHandleMonthChange();
+    await fetchCurrentMonthDashboard();
     
     updatePendingPhotoStatus();
     
-    // Ensure activities is defined (safety check)
     if (typeof activities === 'undefined') {
         activities = [];
     }
     
-    // Clear wizard state on page load
     localStorage.removeItem('wizardFullState');
     localStorage.removeItem('wizardTimerState');
     if (typeof wizardCompleted !== 'undefined') wizardCompleted = false;
     if (typeof wizardSubmitting !== 'undefined') wizardSubmitting = false;
     
-    // Update date display
     const dateDisplay = document.getElementById('currentDateDisplay');
     if (dateDisplay) {
         dateDisplay.textContent = formatDateForDisplay(new Date());
     }
     
-    // Setup auto-save for description fields
     const descFields = ['scopeText', 'difficultiesText', 'recommendationsText', 'impactText'];
     descFields.forEach(fieldId => {
         const field = document.getElementById(fieldId);
@@ -6838,7 +6774,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
     
-    // jsQR check
+    // Initial KPI update
+    updateGlobalKPIs();
+    
     setTimeout(() => {
         if (typeof jsQR !== 'undefined') {
             console.log('🎉 jsQR loaded');
@@ -6854,6 +6792,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     console.log('✅ App initialized with unified storage');
 });
+
 
 // Save before page unload
 window.addEventListener('beforeunload', () => {
