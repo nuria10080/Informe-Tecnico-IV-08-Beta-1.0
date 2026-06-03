@@ -6555,7 +6555,7 @@ async function unifiedLoad() {
         console.log(`📡 Fetching activities for user: ${currentUser.identidadSuffix} for month ${monthKey}`);
         
         try {
-            // FIXED: Removed the nested fetch string - this was the syntax error
+            
             const response = await fetch(`https://api.contranormdigital.com/api/tecno-civico/volunteers/report/individual/${currentUser.identidadSuffix}?month=${monthKey}`);
             
             if (response.ok) {
