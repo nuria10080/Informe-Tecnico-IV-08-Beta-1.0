@@ -4940,7 +4940,7 @@ function renderActivities() {
             <td>${formatDateForDisplay(a.date)}</td>
             <td style="text-align:left">${a.name || ''}</td>
             <td style="text-align:center; font-weight:500;">${totalVolunteers}</td>
-            <td style="text-align:center;">${(a.horas || 0).toFixed(2)}</td>
+            <td style="text-align:center;">${(a.hours || 0).toFixed(2)}</td>
             <td style="text-align:center;">${a.beneficiadas_mujeres || 0}</td>
             <td style="text-align:center;">${a.beneficiados_hombres || 0}</td>
             <td style="text-align:center;">${tBen}</td>
@@ -6844,7 +6844,7 @@ async function exportUserReport(user) {
         const currentMonthKey = getCurrentMonthKey(); // Format: YYYY-MM
         
         // Call your new endpoint with month filter
-        const response = await fetch(`/volunteers/report/individual/${user.identidadSuffix}?month=${currentMonthKey}`);
+        const response = await fetch(`https://api.contranormdigital.com/api/volunteers/report/individual/${user.identidadSuffix}?month=${currentMonthKey}`);
         
         if (!response.ok) {
             throw new Error('No se pudieron obtener datos del servidor');
