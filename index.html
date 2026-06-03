@@ -6550,31 +6550,30 @@ async function unifiedLoad() {
         currentUser = null;
     }
     
-    // Fetch activities from backend
+    // Fetch activities from backend using the filtered endpoint
     if (currentUser && currentUser.identidadSuffix) {
-        console.log(`📡 Fetching activities for user: ${currentUser.identidadSuffix}`);
+        console.log(`📡 Fetching activities for user: ${currentUser.identidadSuffix} for month ${monthKey}`);
         
         try {
-            const response = await fetch('const response = await fetch(`https://api.contranormdigital.com/api/volunteers/report/individual/${currentUser.identidadSuffix}?month=${monthKey}`);');
+            // FIXED: Removed the nested fetch string - this was the syntax error
+            const response = await fetch(`https://api.contranormdigital.com/api/volunteers/report/individual/${currentUser.identidadSuffix}?month=${monthKey}`);
             
             if (response.ok) {
-                const data = await response.json();
-                // Store FULL data for charts
-                allActivities = result.data.activities || [];
+                const result = await response.json();
                 
-                // Filter for user's own activities
-                const myActivities = allActivities.filter(activity => {
-                    if (activity.createdBy === currentUser.identidadSuffix) return true;
-                    if (activity.createdBy && activity.createdBy.includes(currentUser.identidadSuffix)) return true;
-                    return false;
-                });
-                
-                activities = myActivities;
-                console.log(`✅ Fetched ${allActivities.length} total activities, filtered to ${myActivities.length} for ${currentUser.identidadSuffix}`);
-                
-                // Save filtered activities to localStorage
-                localStorage.setItem(`activities_${monthKey}`, JSON.stringify(activities));
-                localStorage.setItem('activities_backup', JSON.stringify(activities));
+                // The activities are inside result.data.activities
+                if (result.success && result.data && result.data.activities) {
+                    allActivities = result.data.activities;
+                    activities = result.data.activities; // These are already the user's activities (filtered by backend)
+                    
+                    console.log(`✅ Fetched ${activities.length} activities for ${currentUser.identidadSuffix} in ${monthKey}`);
+                    
+                    // Save to localStorage
+                    localStorage.setItem(`activities_${monthKey}`, JSON.stringify(activities));
+                    localStorage.setItem('activities_backup', JSON.stringify(activities));
+                } else {
+                    throw new Error('Invalid response structure from backend');
+                }
                 
             } else {
                 console.warn('⚠️ Failed to fetch from backend, falling back to localStorage');
@@ -6630,7 +6629,7 @@ async function unifiedLoad() {
     // Render everything after data is loaded
     if (typeof renderActivities === 'function') renderActivities();
     if (typeof initProfileSystem === 'function') initProfileSystem();
-    if (typeof renderProfileSelector === 'function') renderProfileSelector();  // ADDED
+    if (typeof renderProfileSelector === 'function') renderProfileSelector();
     if (typeof updateCharts === 'function') await updateCharts();
     if (typeof updateGlobalKPIs === 'function') updateGlobalKPIs();
     
