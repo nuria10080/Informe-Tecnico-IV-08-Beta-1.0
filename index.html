@@ -2556,7 +2556,7 @@ function stopAutoSave() {
 async function fetchCurrentMonthDashboard() {
     try {
         const monthKey = getCurrentMonthKey();
-        const response = await fetch(`https://api.contranormdigital.com/api/dashboard/current-month?month=${monthKey}`);
+        const response = await fetch(`https://api.contranormdigital.com/api/tecno-civico/dashboard/current-month?month=${monthKey}`);
         
         if (!response.ok) {
             throw new Error('Failed to fetch dashboard data');
@@ -6556,7 +6556,7 @@ async function unifiedLoad() {
         
         try {
             // FIXED: Removed the nested fetch string - this was the syntax error
-            const response = await fetch(`https://api.contranormdigital.com/api/volunteers/report/individual/${currentUser.identidadSuffix}?month=${monthKey}`);
+            const response = await fetch(`https://api.contranormdigital.com/api/tecno-civico/volunteers/report/individual/${currentUser.identidadSuffix}?month=${monthKey}`);
             
             if (response.ok) {
                 const result = await response.json();
