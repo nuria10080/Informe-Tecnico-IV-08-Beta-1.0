@@ -4866,11 +4866,11 @@ function renderActivities() {
     activities.forEach((a, idx) => {
         const tBen = (a.beneficiadas_mujeres || 0) + (a.beneficiados_hombres || 0);
         totalBen += tBen;
-        totalHoras += a.horas || 0;
+        totalHoras += a.hours || 0;
         totalF += a.beneficiadas_mujeres || 0;
         totalM += a.beneficiados_hombres || 0;
         
-        const horas = a.horas || 0;
+        const horas = a.hours || 0;
         if (a.actionType === 'filial') {
             totalHorasFilial += horas;
         } else {
@@ -6729,15 +6729,15 @@ function updateGlobalKPIs() {
                                  (activity.createdBy && activity.createdBy.includes(userSuffix));
             
             if (isOwnActivity) {
-                myTotalHoras += activity.horas || 0;
+                myTotalHoras += activity.hours || 0;
                 myTotalMujeres += activity.beneficiadas_mujeres || 0;
                 myTotalHombres += activity.beneficiados_hombres || 0;
                 myTotalActividades++;
                 
                 if (activity.actionType === 'filial') {
-                    myTotalHorasFilial += activity.horas || 0;
+                    myTotalHorasFilial += activity.hours || 0;
                 } else if (activity.actionType === 'campo') {
-                    myTotalHorasCampo += activity.horas || 0;
+                    myTotalHorasCampo += activity.hours || 0;
                 }
             }
         });
