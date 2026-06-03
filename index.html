@@ -5148,7 +5148,7 @@ function renderActivities() {
             qrCellHtml = `<span style="color:var(--text-light);">—</span>`;
         }
 
-        const totalVolunteers = a.voluntarias || 0;
+        const totalVolunteers = Math.max(1, a.voluntarias || 0);
         
         // Build table row
         tbody.innerHTML += `
@@ -6938,7 +6938,7 @@ function updateGlobalKPIs() {
         totalVoluntariosActivosEl.innerText = '0';
     }
     
-    // USER-SPECIFIC KPIs - from activities array
+    // USER-SPECIFIC KPIs - SIMPLY SUM ALL ACTIVITIES
     let myTotalHoras = 0;
     let myTotalHorasFilial = 0;
     let myTotalHorasCampo = 0;
@@ -6946,22 +6946,21 @@ function updateGlobalKPIs() {
     let myTotalMujeres = 0;
     let myTotalHombres = 0;
     
-    if (typeof activities !== 'undefined' && activities.length > 0 && userSuffix) {
+    if (typeof activities !== 'undefined' && activities.length > 0) {
+        // Just sum everything - ALL activities in the array belong to this user
         activities.forEach(activity => {
-            const isOwnActivity = (activity.createdBy === userSuffix) || 
-                                 (activity.createdBy && activity.createdBy.includes(userSuffix));
+            const hoursValue = activity.hours || activity.horas || 0;
+            const hoursNum = typeof hoursValue === 'string' ? parseFloat(hoursValue) : hoursValue;
             
-            if (isOwnActivity) {
-                myTotalHoras += activity.hours || 0;
-                myTotalMujeres += activity.beneficiadas_mujeres || 0;
-                myTotalHombres += activity.beneficiados_hombres || 0;
-                myTotalActividades++;
-                
-                if (activity.actionType === 'filial') {
-                    myTotalHorasFilial += activity.hours || 0;
-                } else if (activity.actionType === 'campo') {
-                    myTotalHorasCampo += activity.hours || 0;
-                }
+            myTotalHoras += hoursNum;
+            myTotalMujeres += activity.beneficiadas_mujeres || 0;
+            myTotalHombres += activity.beneficiados_hombres || 0;
+            myTotalActividades++;
+            
+            if (activity.actionType === 'filial') {
+                myTotalHorasFilial += hoursNum;
+            } else if (activity.actionType === 'campo') {
+                myTotalHorasCampo += hoursNum;
             }
         });
     }
