@@ -1629,7 +1629,7 @@ function normalizeActivity(activity) {
     // 2. FIX: Ensure hours is a number and also set horas for compatibility
     if (activity.hours !== undefined) {
         norm.hours = typeof activity.hours === 'string' ? parseFloat(activity.hours) : activity.hours;
-        norm.horas = norm.hours;  // For functions that still use 'horas'
+        norm.horas = norm.hours;
     } else if (activity.horas !== undefined) {
         norm.horas = typeof activity.horas === 'string' ? parseFloat(activity.horas) : activity.horas;
         norm.hours = norm.horas;
@@ -1638,7 +1638,12 @@ function normalizeActivity(activity) {
         norm.horas = 0;
     }
     
-    // 3. FIX: Ensure links is always an array
+    // 3. FIX: Ensure voluntarias is at least 1 (reporter always counts)
+    if (norm.reportedBy && (!norm.voluntarias || norm.voluntarias === 0)) {
+        norm.voluntarias = 1;
+    }
+    
+    // 4. FIX: Ensure links is always an array
     if (activity.links === undefined) {
         norm.links = [];
     } else if (typeof activity.links === 'string') {
@@ -1649,7 +1654,7 @@ function normalizeActivity(activity) {
         }
     }
     
-    // 4. FIX: Ensure colaboradores is always an array
+    // 5. FIX: Ensure colaboradores is always an array
     if (activity.colaboradores === undefined) {
         norm.colaboradores = [];
     } else if (typeof activity.colaboradores === 'string') {
@@ -1660,13 +1665,13 @@ function normalizeActivity(activity) {
         }
     }
     
-    // 5. FIX: Ensure all numeric fields are numbers
+    // 6. FIX: Ensure all numeric fields are numbers
     norm.beneficiadas_mujeres = norm.beneficiadas_mujeres || 0;
     norm.beneficiados_hombres = norm.beneficiados_hombres || 0;
-    norm.voluntarias = norm.voluntarias || 0;
+    norm.voluntarias = norm.voluntarias || 1;  // Minimum 1 (the reporter)
     norm.actionType = norm.actionType || 'campo';
     
-    // 6. FIX: Ensure date is properly formatted
+    // 7. FIX: Ensure date is properly formatted
     if (norm.date && norm.date.includes('/')) {
         const parts = norm.date.split('/');
         if (parts.length === 3) {
@@ -1676,7 +1681,6 @@ function normalizeActivity(activity) {
     
     return norm;
 }
-
 function normalizeAllActivities(activitiesArray) {
     if (!activitiesArray || !Array.isArray(activitiesArray)) return [];
     return activitiesArray.map(activity => normalizeActivity(activity));
