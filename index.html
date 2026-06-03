@@ -1610,7 +1610,205 @@ const identidadSuffix = identidad
   ? `Voluntario-${Date.now()}-${identidad}`
   : null;
 
+// ==========================================
+// GLOBAL ACTIVITY NORMALIZER - FIXES ALL FIELD MISMATCHES
+// ==========================================
+function normalizeActivity(activity) {
+    if (!activity) return activity;
+    
+    const norm = { ...activity };
+    
+    // 1. FIX: Map 'reportedBy' to 'createdBy' (backend uses reportedBy, frontend expects createdBy)
+    if (activity.reportedBy && !activity.createdBy) {
+        norm.createdBy = activity.reportedBy;
+    }
+    if (activity.reportedByName && !activity.createdByName) {
+        norm.createdByName = activity.reportedByName;
+    }
+    
+    // 2. FIX: Ensure hours is a number and also set horas for compatibility
+    if (activity.hours !== undefined) {
+        norm.hours = typeof activity.hours === 'string' ? parseFloat(activity.hours) : activity.hours;
+        norm.horas = norm.hours;  // For functions that still use 'horas'
+    } else if (activity.horas !== undefined) {
+        norm.horas = typeof activity.horas === 'string' ? parseFloat(activity.horas) : activity.horas;
+        norm.hours = norm.horas;
+    } else {
+        norm.hours = 0;
+        norm.horas = 0;
+    }
+    
+    // 3. FIX: Ensure links is always an array
+    if (activity.links === undefined) {
+        norm.links = [];
+    } else if (typeof activity.links === 'string') {
+        try {
+            norm.links = JSON.parse(activity.links);
+        } catch(e) {
+            norm.links = [];
+        }
+    }
+    
+    // 4. FIX: Ensure colaboradores is always an array
+    if (activity.colaboradores === undefined) {
+        norm.colaboradores = [];
+    } else if (typeof activity.colaboradores === 'string') {
+        try {
+            norm.colaboradores = JSON.parse(activity.colaboradores);
+        } catch(e) {
+            norm.colaboradores = [];
+        }
+    }
+    
+    // 5. FIX: Ensure all numeric fields are numbers
+    norm.beneficiadas_mujeres = norm.beneficiadas_mujeres || 0;
+    norm.beneficiados_hombres = norm.beneficiados_hombres || 0;
+    norm.voluntarias = norm.voluntarias || 0;
+    norm.actionType = norm.actionType || 'campo';
+    
+    // 6. FIX: Ensure date is properly formatted
+    if (norm.date && norm.date.includes('/')) {
+        const parts = norm.date.split('/');
+        if (parts.length === 3) {
+            norm.date = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+        }
+    }
+    
+    return norm;
+}
 
+function normalizeAllActivities(activitiesArray) {
+    if (!activitiesArray || !Array.isArray(activitiesArray)) return [];
+    return activitiesArray.map(activity => normalizeActivity(activity));
+}
+
+async function unifiedLoad() {
+    const monthKey = getCurrentMonthKey();
+    
+    // Load profiles from localStorage
+    const savedProfiles = localStorage.getItem(`VoluntarioProfiles_${monthKey}`);
+    if (savedProfiles) {
+        try {
+            VoluntarioProfiles = JSON.parse(savedProfiles);
+            console.log(`✅ Loaded ${VoluntarioProfiles.length} profiles from localStorage`);
+        } catch(e) {
+            VoluntarioProfiles = [];
+        }
+    } else {
+        const backupProfiles = localStorage.getItem('profiles_backup');
+        if (backupProfiles) {
+            try {
+                VoluntarioProfiles = JSON.parse(backupProfiles);
+                console.log(`⚠️ Loaded ${VoluntarioProfiles.length} profiles from backup`);
+            } catch(e) {
+                VoluntarioProfiles = [];
+            }
+        } else {
+            VoluntarioProfiles = [];
+        }
+    }
+    
+    // Load current user
+    const savedUserId = localStorage.getItem(`currentUser_${monthKey}`);
+    if (savedUserId && VoluntarioProfiles.length > 0) {
+        currentUser = VoluntarioProfiles.find(p => p.id === savedUserId) || null;
+        console.log(`✅ Loaded currentUser: ${currentUser?.name || 'none'}`);
+    } else if (VoluntarioProfiles.length > 0) {
+        currentUser = VoluntarioProfiles[0];
+        console.log(`⚠️ No saved currentUser, defaulting to: ${currentUser?.name}`);
+    } else {
+        currentUser = null;
+    }
+    
+    // Fetch activities from backend using the filtered endpoint
+    if (currentUser && currentUser.identidadSuffix) {
+        console.log(`📡 Fetching activities for user: ${currentUser.identidadSuffix} for month ${monthKey}`);
+        
+        try {
+            const response = await fetch(`https://api.contranormdigital.com/api/tecno-civico/volunteers/report/individual/${currentUser.identidadSuffix}?month=${monthKey}`);
+            
+            if (response.ok) {
+                const result = await response.json();
+                
+                if (result.success && result.data && result.data.activities) {
+                    // CRITICAL: NORMALIZE THE ACTIVITIES
+                    const rawActivities = result.data.activities;
+                    activities = normalizeAllActivities(rawActivities);
+                    allActivities = activities;
+                    
+                    console.log(`✅ Fetched and NORMALIZED ${activities.length} activities for ${currentUser.identidadSuffix} in ${monthKey}`);
+                    console.log(`✅ Sample - createdBy: ${activities[0]?.createdBy}, hours: ${activities[0]?.hours}`);
+                    
+                    // Save normalized activities to localStorage
+                    localStorage.setItem(`activities_${monthKey}`, JSON.stringify(activities));
+                    localStorage.setItem('activities_backup', JSON.stringify(activities));
+                } else {
+                    throw new Error('Invalid response structure from backend');
+                }
+                
+            } else {
+                console.warn('⚠️ Failed to fetch from backend, falling back to localStorage');
+                const savedActivities = localStorage.getItem(`activities_${monthKey}`);
+                if (savedActivities) {
+                    const rawActivities = JSON.parse(savedActivities);
+                    activities = normalizeAllActivities(rawActivities);
+                    allActivities = activities;
+                } else {
+                    activities = [];
+                    allActivities = [];
+                }
+            }
+        } catch (error) {
+            console.error('❌ Backend fetch failed:', error);
+            const savedActivities = localStorage.getItem(`activities_${monthKey}`);
+            if (savedActivities) {
+                const rawActivities = JSON.parse(savedActivities);
+                activities = normalizeAllActivities(rawActivities);
+                allActivities = activities;
+            } else {
+                activities = [];
+                allActivities = [];
+            }
+        }
+    } else {
+        // No current user, load from localStorage
+        const savedActivities = localStorage.getItem(`activities_${monthKey}`);
+        if (savedActivities) {
+            const rawActivities = JSON.parse(savedActivities);
+            activities = normalizeAllActivities(rawActivities);
+            allActivities = activities;
+        } else {
+            activities = [];
+            allActivities = [];
+        }
+    }
+    
+    // Sort activities
+    if (typeof sortActivitiesByDate === 'function') {
+        sortActivitiesByDate();
+    }
+    
+    // Load description fields
+    const savedDesc = localStorage.getItem(`desc_${monthKey}`);
+    if (savedDesc) {
+        try {
+            const desc = JSON.parse(savedDesc);
+            if (document.getElementById('scopeText')) document.getElementById('scopeText').value = desc.scope || '';
+            if (document.getElementById('difficultiesText')) document.getElementById('difficultiesText').value = desc.difficulties || '';
+            if (document.getElementById('recommendationsText')) document.getElementById('recommendationsText').value = desc.recommendations || '';
+            if (document.getElementById('impactText')) document.getElementById('impactText').value = desc.impact || '';
+        } catch(e) {}
+    }
+    
+    // Render everything after data is loaded
+    if (typeof renderActivities === 'function') renderActivities();
+    if (typeof initProfileSystem === 'function') initProfileSystem();
+    if (typeof renderProfileSelector === 'function') renderProfileSelector();
+    if (typeof updateCharts === 'function') await updateCharts();
+    if (typeof updateGlobalKPIs === 'function') updateGlobalKPIs();
+    
+    console.log('✅ Load complete - my activities:', activities.length, 'all activities:', allActivities.length);
+}
 
 // Then update your checkAndHandleMonthChange function:
 async function checkAndHandleMonthChange() {
@@ -1752,6 +1950,7 @@ const rolesDisponibles = [
     { id:'coord_gestion_voluntarios', nombre:'Coordinador de Voluntariado' },{ id:'coord_eventos', nombre:'Coordinadora Ferias Civicas' },
     { id:'coord_comunicacion', nombre:'Gestora de Articulación Interinstitucional' }
 ];
+
 
 
 let searchTimeout = null;
@@ -4858,23 +5057,41 @@ function renderActivities() {
     }
 
     const tbody = document.getElementById('activitiesBody');
+    if (!tbody) return;
     tbody.innerHTML = '';
 
     let totalHoras = 0, totalF = 0, totalM = 0, totalBen = 0;
     let totalHorasFilial = 0, totalHorasCampo = 0;
 
+    if (!activities || activities.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:40px;">No hay actividades registradas</td></tr>';
+        // Update zeros
+        document.getElementById('totalHoras').innerText = '0';
+        if (document.getElementById('totalHorasFilial')) document.getElementById('totalHorasFilial').innerText = '0';
+        if (document.getElementById('totalHorasCampo')) document.getElementById('totalHorasCampo').innerText = '0';
+        document.getElementById('totalBeneficiados').innerText = '0';
+        document.getElementById('totalMujeresBen').innerText = '0';
+        document.getElementById('totalHombresBen').innerText = '0';
+        document.getElementById('totalActividades').innerText = '0';
+        document.getElementById('footerDate').innerText = formatDateForDisplay(new Date(), true);
+        return;
+    }
+
     activities.forEach((a, idx) => {
+        // Safely get hours (could be from hours or horas field, already normalized)
+        const activityHours = a.hours || a.horas || 0;
+        const hoursNum = typeof activityHours === 'string' ? parseFloat(activityHours) : activityHours;
+        
         const tBen = (a.beneficiadas_mujeres || 0) + (a.beneficiados_hombres || 0);
         totalBen += tBen;
-        totalHoras += a.hours || 0;
+        totalHoras += hoursNum;
         totalF += a.beneficiadas_mujeres || 0;
         totalM += a.beneficiados_hombres || 0;
         
-        const horas = a.hours || 0;
         if (a.actionType === 'filial') {
-            totalHorasFilial += horas;
+            totalHorasFilial += hoursNum;
         } else {
-            totalHorasCampo += horas;
+            totalHorasCampo += hoursNum;
         }
 
         // GPS badge
@@ -4931,16 +5148,15 @@ function renderActivities() {
             qrCellHtml = `<span style="color:var(--text-light);">—</span>`;
         }
 
-        // FIXED: Display the total number of volunteers from a.voluntarias
         const totalVolunteers = a.voluntarias || 0;
         
         // Build table row
         tbody.innerHTML += `
         <tr>
             <td>${formatDateForDisplay(a.date)}</td>
-            <td style="text-align:left">${a.name || ''}</td>
+            <td style="text-align:left">${escapeHtml(a.name || '')}</td>
             <td style="text-align:center; font-weight:500;">${totalVolunteers}</td>
-            <td style="text-align:center;">${(a.hours || 0).toFixed(2)}</td>
+            <td style="text-align:center;">${hoursNum.toFixed(2)}</td>
             <td style="text-align:center;">${a.beneficiadas_mujeres || 0}</td>
             <td style="text-align:center;">${a.beneficiados_hombres || 0}</td>
             <td style="text-align:center;">${tBen}</td>
@@ -4957,7 +5173,8 @@ function renderActivities() {
     });
 
     // Update totals
-    document.getElementById('totalHoras').innerText = totalHoras.toFixed(2);
+    const totalHorasEl = document.getElementById('totalHoras');
+    if (totalHorasEl) totalHorasEl.innerText = totalHoras.toFixed(2);
     
     const totalHorasFilialEl = document.getElementById('totalHorasFilial');
     const totalHorasCampoEl = document.getElementById('totalHorasCampo');
@@ -4965,11 +5182,17 @@ function renderActivities() {
     if (totalHorasFilialEl) totalHorasFilialEl.innerText = totalHorasFilial.toFixed(2);
     if (totalHorasCampoEl) totalHorasCampoEl.innerText = totalHorasCampo.toFixed(2);
     
-    document.getElementById('totalBeneficiados').innerText = totalBen;
-    document.getElementById('totalMujeresBen').innerText = totalF;
-    document.getElementById('totalHombresBen').innerText = totalM;
-    document.getElementById('totalActividades').innerText = activities.length;
-    document.getElementById('footerDate').innerText = formatDateForDisplay(new Date(), true);
+    const totalBeneficiadosEl = document.getElementById('totalBeneficiados');
+    const totalMujeresBenEl = document.getElementById('totalMujeresBen');
+    const totalHombresBenEl = document.getElementById('totalHombresBen');
+    const totalActividadesEl = document.getElementById('totalActividades');
+    const footerDateEl = document.getElementById('footerDate');
+    
+    if (totalBeneficiadosEl) totalBeneficiadosEl.innerText = totalBen;
+    if (totalMujeresBenEl) totalMujeresBenEl.innerText = totalF;
+    if (totalHombresBenEl) totalHombresBenEl.innerText = totalM;
+    if (totalActividadesEl) totalActividadesEl.innerText = activities.length;
+    if (footerDateEl) footerDateEl.innerText = formatDateForDisplay(new Date(), true);
     
     updateCharts();
     
