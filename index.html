@@ -1659,7 +1659,7 @@ NEUTRAL & BURNT WIZARD STYLES
       </div>
           <div style="display: flex; gap: 8px">
             <button
-              onclick="showManagevoluntarios()"
+              onclick="ManageAppUser()"
               style="
                 background: var(--primary);
                 color: white;
@@ -1965,7 +1965,7 @@ NEUTRAL & BURNT WIZARD STYLES
       // ==========================================
       // GLOBAL STATE
       // ==========================================
-      const APP_VERSION = "Informe-Tecnico-v2.1.12";
+      const APP_VERSION = "Informe-Tecnico-v2.1.14";
       let DashboardData = null;
       let allActivities = [];
       let activities = [];
@@ -2012,10 +2012,10 @@ NEUTRAL & BURNT WIZARD STYLES
         `;
         
         currentSpinner.innerHTML = `
-          <div style="background: var(--surface-2); border-radius: 24px; padding: 32px; text-align: center; border: 1px solid var(--accent);">
-            <div style="width: 50px; height: 50px; border: 4px solid var(--muted); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
-            <p style="color: white; margin-bottom: 8px;" id="spinnerMainMsg">${message}</p>
-            <p style="color: var(--muted); font-size: 0.75rem;" id="spinnerSubMsg">${subMessage}</p>
+          <div style="background: #1e1e2a; border-radius: 24px; padding: 32px; text-align: center; border: 1px solid #E34A2F;">
+            <div style="width: 50px; height: 50px; border: 4px solid #4a4a5a; border-top-color: #E34A2F; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+            <p style="color: white; margin-bottom: 8px; font-size: 1rem;" id="spinnerMainMsg">${message}</p>
+            <p style="color: #a0a0b0; font-size: 0.75rem;" id="spinnerSubMsg">${subMessage}</p>
           </div>
         `;
         
@@ -2028,6 +2028,22 @@ NEUTRAL & BURNT WIZARD STYLES
         }
         
         document.body.appendChild(currentSpinner);
+      }
+
+      function updateSpinnerMessage(message, subMessage) {
+        if (currentSpinner) {
+          const mainMsg = currentSpinner.querySelector('#spinnerMainMsg');
+          const subMsg = currentSpinner.querySelector('#spinnerSubMsg');
+          if (mainMsg) mainMsg.textContent = message;
+          if (subMsg) subMsg.textContent = subMessage;
+        }
+      }
+
+      function hideSpinner() {
+        if (currentSpinner) {
+          currentSpinner.remove();
+          currentSpinner = null;
+        }
       }
 
       function updateSpinnerMessage(message, subMessage) {
@@ -3288,39 +3304,11 @@ NEUTRAL & BURNT WIZARD STYLES
       }
       
 
-      function calculateProfileHoursFromActivities(profile) {
-        if (typeof activities === "undefined" || !activities.length) return 0;
-
-        let total = 0;
-        const userSuffix = profile.identidadSuffix;
-
-        activities.forEach((activity) => {
-          // Check if activity was created by this user (match by suffix)
-          if (activity.reportedBy === userSuffix) {
-            total += activity.hours || 0;
-          }
-        });
-        return total;
-      }
-
       // ==========================================
       // NEW HELPER: calculateProfileActivityCount()
       // ==========================================
-      function calculateProfileActivityCount(profile) {
-        if (typeof activities === "undefined" || !activities.length) return 0;
-
-        let count = 0;
-        const userSuffix = profile.identidadSuffix;
-
-        activities.forEach((activity) => {
-          if (activity.reportedBy === userSuffix) {
-            count++;
-          }
-        });
-        return count;
-      }
-
-      function showManagevoluntarios() {
+    
+      function ManageAppUser() {
         if (!registeredProfile) {
           alert("❌ Sin registros del usuario.");
           return;
@@ -6734,7 +6722,7 @@ NEUTRAL & BURNT WIZARD STYLES
 
           // Call your new endpoint with month filter
           const response = await fetch(
-            `https://api.contranormdigital.com/api/volunteers/report/individual/${user.identidadSuffix}?month=${currentMonthKey}`,
+            `https://api.contranormdigital.com/api/tecno-civico/volunteers/report/individual/${registeredProfile.identidadSuffix}?month=${monthKey}`,
           );
 
           if (!response.ok) {
@@ -6780,139 +6768,92 @@ NEUTRAL & BURNT WIZARD STYLES
       // ==========================================
       // LOCAL REPORT - Uses only local data, no backend call
       // ==========================================
-      async function generateLocalUserReport(user) {
-        if (!user || !user.identidadSuffix) {
+      async function generateLocalUserReport(registeredProfile) {
+        if (!registeredProfile || !registeredProfile.identidadSuffix) {
           alert("❌ No hay usuario seleccionado o falta ID");
           return;
         }
 
-        showWizardLoading(
-          "Generando reporte local...",
-          "Buscando datos en tu dispositivo",
-        );
+        showSpinner("Generando reporte local...", "Buscando datos en tu dispositivo");
 
         try {
           const currentMonthKey = getCurrentMonthKey();
           const [currentYear, currentMonthNum] = currentMonthKey.split("-");
 
-          // Get local activities for this user and current month
           let userLocalActivities = [];
 
-          // Try to get from localStorage first
-          const savedActivitiesJSON = localStorage.getItem(
-            `activities_${currentMonthKey}`,
-          );
-          if (savedActivitiesJSON) {
-            const allActivities = JSON.parse(savedActivitiesJSON);
-            userLocalActivities = allActivities.filter(
-              (activity) =>
-                activity.reportedBy === user.identidadSuffix ||
-                activity.reportedBy === user.id ||
-                (activity.participantCount &&
-                  activity.participantCount.some(
-                    (p) =>
-                      p.identidadSuffix === user.identidadSuffix ||
-                      p.profileId === user.id,
-                  )),
+          // FIRST: Use global activities array (current session data)
+          if (typeof activities !== "undefined" && activities.length > 0) {
+            userLocalActivities = activities.filter(
+              (activity) => activity.reportedBy === registeredProfile.identidadSuffix
             );
           }
 
-          // Fallback to global activities array
-          if (
-            userLocalActivities.length === 0 &&
-            typeof activities !== "undefined"
-          ) {
-            userLocalActivities = activities.filter((activity) => {
-              if (activity.reportedBy === user.identidadSuffix) return true;
-              if (activity.reportedBy === user.id) return true;
-              if (
-                activity.participantCount &&
-                activity.participantCount.length > 0
-              ) {
-                return activity.participantCount.some(
-                  (p) =>
-                    p.identidadSuffix === user.identidadSuffix ||
-                    p.profileId === user.id,
-                );
-              }
-              return false;
-            });
+          // SECOND: Fallback to localStorage if global activities is empty
+          if (userLocalActivities.length === 0) {
+            const savedActivitiesJSON = localStorage.getItem(`activities_${currentMonthKey}`);
+            if (savedActivitiesJSON) {
+              const allActivities = JSON.parse(savedActivitiesJSON);
+              userLocalActivities = allActivities.filter(
+                (activity) => activity.reportedBy === registeredProfile.identidadSuffix
+              );
+            }
           }
 
-          hideWizardLoading();
+          // THIRD: Fallback to backup
+          if (userLocalActivities.length === 0) {
+            const backupActivitiesJSON = localStorage.getItem("activities_backup");
+            if (backupActivitiesJSON) {
+              const backupActivities = JSON.parse(backupActivitiesJSON);
+              userLocalActivities = backupActivities.filter(
+                (activity) => activity.reportedBy === registeredProfile.identidadSuffix
+              );
+            }
+          }
+
+          hideSpinner();
 
           if (userLocalActivities.length === 0) {
-            alert(
-              `⚠️ ${user.name} no tiene actividades registradas localmente en este mes`,
-            );
+            alert(`⚠️ ${registeredProfile.name} no tiene actividades registradas localmente en este mes`);
             return;
           }
 
-          // Calculate totals
           const totalHours = userLocalActivities.reduce(
-            (sum, act) => sum + (act.hours || 0),
+            (sum, act) => sum + (parseFloat(act.hours) || 0),
             0,
           );
-          const ownReports = userLocalActivities.filter(
-            (a) =>
-              a.reportedBy === user.identidadSuffix || a.reportedBy === user.id,
-          ).length;
-          const othersReports = userLocalActivities.length - ownReports;
 
-          const monthNames = [
-            "Enero",
-            "Febrero",
-            "Marzo",
-            "Abril",
-            "Mayo",
-            "Junio",
-            "Julio",
-            "Agosto",
-            "Septiembre",
-            "Octubre",
-            "Noviembre",
-            "Diciembre",
-          ];
+          const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
           const currentMonth = monthNames[parseInt(currentMonthNum) - 1];
 
-          // Build local data structure matching the backend format
           const localData = {
             reportType: "individual_volunteer_local",
             volunteer: {
-              id: user.identidadSuffix,
-              name: user.name,
-              role: user.rolNombre,
-              gender: user.gender || "No especificado",
-              status: user.status || "Activo",
+              id: registeredProfile.identidadSuffix,
+              name: registeredProfile.name,
+              role: registeredProfile.rolNombre,
+              gender: registeredProfile.gender || "No especificado",
+              status: registeredProfile.status || "Activo",
               totalHours: totalHours.toFixed(2),
               totalActivities: userLocalActivities.length,
-              ownReports: ownReports,
-              othersReports: othersReports,
+              ownReports: userLocalActivities.length,
+              othersReports: 0,
             },
-            period: {
-              month: currentMonth,
-              year: currentYear,
-            },
+            period: { month: currentMonth, year: currentYear },
             generatedAt: formatDateForDisplay(new Date(), true),
-            generatedBy: `${user.name} (${user.rolNombre})`,
+            generatedBy: `${registeredProfile.name} (${registeredProfile.rolNombre})`,
             verificationToken: null,
             verificationLink: null,
             activities: userLocalActivities.map((activity, idx) => ({
               id: activity.id || idx,
               date: formatDateForDisplay(activity.date),
               name: activity.name || "",
-              hours: (activity.hours || 0).toFixed(2),
+              hours: (parseFloat(activity.hours) || 0).toFixed(2),
               startTime: activity.startTime || "",
               endTime: activity.endTime || "",
-              reportedBy:
-                activity.reportedBy === user.identidadSuffix
-                  ? user.identidadSuffix
-                  : activity.reportedBy,
-              reportedByName:
-                activity.reportedBy === user.identidadSuffix
-                  ? "Yo misma"
-                  : activity.reportedByName || "Otra voluntaria",
-              isOwnReport: activity.reportedBy === user.identidadSuffix,
+              reportedBy: activity.reportedBy,
+              reportedByName: "Yo misma",
+              isOwnReport: true,
               beneficiariesWomen: activity.beneficiadas_mujeres || 0,
               beneficiariesMen: activity.beneficiados_hombres || 0,
             })),
@@ -6920,16 +6861,14 @@ NEUTRAL & BURNT WIZARD STYLES
 
           await generateFilledPDF(localData, true);
 
-          alert(
-            `✅ Reporte LOCAL generado para ${user.name}\n📊 ${userLocalActivities.length} actividades\n⏱️ ${totalHours.toFixed(2)} hours\n\n⚠️ Este reporte NO es verificable por terceros.`,
-          );
+          alert(`✅ Reporte LOCAL generado para ${registeredProfile.name}\n📊 ${userLocalActivities.length} actividades\n⏱️ ${totalHours.toFixed(2)} hours\n\n⚠️ Este reporte NO es verificable por terceros.`);
         } catch (error) {
           console.error("Error generating local report:", error);
-          hideWizardLoading();
+          hideSpinner();
           alert(`❌ Error al generar reporte local: ${error.message}`);
         }
       }
-
+      
       function safeSheetName(name) {
         if (name.length <= 31) return name;
         return name.substring(0, 28) + "...";
@@ -7261,15 +7200,15 @@ NEUTRAL & BURNT WIZARD STYLES
         if (event) event.preventDefault();
 
         const allowedRoles = [
-          "Subdirectora",
-          "Directora",
-          "Presidenta",
-          "Presidente",
-          "Fiscal",
-          "Secretario",
-          "Secretaria",
-          "Tesorera",
-          "Tesorero",
+          "subdirectora",
+          "directora",
+          "presidenta",
+          "presidente",
+          "fiscal",
+          "secretario",
+          "secretaria",
+          "tesorera",
+          "tesorero",
         ];
         const userRole =
           typeof registeredProfile  !== "undefined" && registeredProfile 
