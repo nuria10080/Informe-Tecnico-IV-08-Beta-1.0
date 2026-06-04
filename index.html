@@ -1675,7 +1675,7 @@ NEUTRAL & BURNT WIZARD STYLES
           </div>
         </div>
         <div
-          id="currentUserInfo"
+          id="registeredProfile Info"
           style="margin-top: 8px; font-size: 0.7rem; color: var(--text-medium)"
         >
           Las hours registradas se asignarán al usuario seleccionado
@@ -1814,7 +1814,7 @@ NEUTRAL & BURNT WIZARD STYLES
         <button
           class="action-button save"
           onclick="
-            unifiedSave();
+            updateAndSave();
             this.textContent = '✅ Guardado!';
             setTimeout(() => (this.textContent = '💾 Guardar'), 2000);
           "
@@ -1965,13 +1965,12 @@ NEUTRAL & BURNT WIZARD STYLES
       // ==========================================
       // GLOBAL STATE
       // ==========================================
-      const APP_VERSION = "Informe-Tecnico-v2.1.8";
+      const APP_VERSION = "Informe-Tecnico-v2.1.12";
       let DashboardData = null;
       let allActivities = [];
       let activities = [];
       let voluntariosActivos = [];
       let registeredProfile = null;
-      let currentUser = null;
       let loadingOverlay = null;
       let activityFormCount = 0;
       let timers = {};
@@ -1981,12 +1980,16 @@ NEUTRAL & BURNT WIZARD STYLES
       let wizardSubmitting = false;
       const identidad = null;
       const identidadSuffix = identidad
-        ? `Voluntario-${Date.now()}-${identidad}`
+        ? `${Date.now()}-${identidad}`
         : null;
 
+      
+
+      // Global spinner functions
       let currentSpinner = null;
 
-      function showSpinner(message = "Procesando tu registro...", subMessage = "Convirtiendo imágenes y generando documento") {
+      function showSpinner(message = "Procesando tu registro...", subMessage = "Verificando datos...") {
+        // Remove existing spinner if any
         if (currentSpinner) {
           currentSpinner.remove();
         }
@@ -2016,6 +2019,7 @@ NEUTRAL & BURNT WIZARD STYLES
           </div>
         `;
         
+        // Add spin animation if not exists
         if (!document.querySelector('#spinAnimationStyle')) {
           const style = document.createElement('style');
           style.id = 'spinAnimationStyle';
@@ -2046,110 +2050,8 @@ NEUTRAL & BURNT WIZARD STYLES
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
       }
+      const monthKey = getCurrentMonthKey();
 
-      async function unifiedLoad() {
-        const monthKey = getCurrentMonthKey();
-
-        // Initialize profile system (this sets currentUser and registeredProfile)
-        if (typeof initProfileSystem === "function") {
-          initProfileSystem();
-        }
-
-        // Now currentUser is set by initProfileSystem
-        let loadedActivities = [];
-
-        if (currentUser && currentUser.identidadSuffix) {
-          console.log(
-            `📡 Fetching activities for user: ${currentUser.identidadSuffix} for month ${monthKey}`,
-          );
-
-          try {
-            const response = await fetch(
-              `https://api.contranormdigital.com/api/tecno-civico/volunteers/report/individual/${currentUser.identidadSuffix}?month=${monthKey}`,
-            );
-            if (response.ok) {
-              const result = await response.json();
-              if (result.success && result.data && result.data.activities) {
-                loadedActivities = result.data.activities;
-                console.log(
-                  `✅ Fetched ${loadedActivities.length} activities for current user`,
-                );
-
-                localStorage.setItem(
-                  `activities_${monthKey}`,
-                  JSON.stringify(loadedActivities),
-                );
-                localStorage.setItem(
-                  "activities_backup",
-                  JSON.stringify(loadedActivities),
-                );
-              } else {
-                throw new Error("Invalid response structure");
-              }
-            } else {
-              throw new Error(`HTTP ${response.status}`);
-            }
-          } catch (error) {
-            console.warn(
-              "⚠️ Backend fetch failed, falling back to localStorage:",
-              error.message,
-            );
-            const savedActivities = localStorage.getItem(
-              `activities_${monthKey}`,
-            );
-            if (savedActivities) {
-              loadedActivities = JSON.parse(savedActivities);
-              console.log(
-                `📦 Loaded ${loadedActivities.length} user activities from localStorage`,
-              );
-            } else {
-              loadedActivities = [];
-            }
-          }
-        } else {
-          const savedActivities = localStorage.getItem(
-            `activities_${monthKey}`,
-          );
-          if (savedActivities) {
-            loadedActivities = JSON.parse(savedActivities);
-            console.log(
-              `📦 Loaded ${loadedActivities.length} user activities from localStorage`,
-            );
-          } else {
-            loadedActivities = [];
-          }
-        }
-
-        if (typeof sortActivitiesByDate === "function") {
-          sortActivitiesByDate();
-        }
-
-        // Load description fields
-        const savedDesc = localStorage.getItem(`desc_${monthKey}`);
-        if (savedDesc) {
-          try {
-            const desc = JSON.parse(savedDesc);
-            if (document.getElementById("scopeText"))
-              document.getElementById("scopeText").value = desc.scope || "";
-            if (document.getElementById("difficultiesText"))
-              document.getElementById("difficultiesText").value =
-                desc.difficulties || "";
-            if (document.getElementById("recommendationsText"))
-              document.getElementById("recommendationsText").value =
-                desc.recommendations || "";
-            if (document.getElementById("impactText"))
-              document.getElementById("impactText").value = desc.impact || "";
-          } catch (e) {}
-        }
-
-        // Render everything
-        if (typeof renderActivities === "function") renderActivities();
-        if (typeof renderRegisteredProfile === "function")
-          renderRegisteredProfile();
-        if (typeof updateCharts === "function") await updateCharts();
-        if (typeof updateGlobalKPIs === "function") updateGlobalKPIs();
-      }
-      
       const rolesDisponibles = [
         { id: "directora", nombre: "Director/a" },
         { id: "consejo", nombre: "Miembro del Consejeo" },
@@ -2301,7 +2203,7 @@ NEUTRAL & BURNT WIZARD STYLES
                   
                   // Check status - if inactive, show message and close
                   if (volunteer.status === "INACTIVO") {
-                    searchStatus.innerHTML = "⚠️ Este voluntario está INACTIVO en el sistema. No se puede crear el perfil.";
+                    searchStatus.innerHTML = "⚠️ INACTIVO: No se puede crear un nuevo perfil.";
                     searchStatus.style.color = "var(--warning)";
                     setTimeout(() => {
                       modal.remove();
@@ -2312,7 +2214,7 @@ NEUTRAL & BURNT WIZARD STYLES
                   // Auto-fill from backend
                   nameInput.value = volunteer.fullName || volunteer.alias || "";
                   foundVolunteerData = volunteer;
-                  searchStatus.innerHTML = `✅ Voluntaria encontrada: ${volunteer.role || "Rol no definido"}`;
+                  searchStatus.innerHTML = `Cargo Actual: ${volunteer.role || "Cargo no Definido."}`;
                   searchStatus.style.color = "var(--success)";
                   
                   // Hide role selector (role comes from backend)
@@ -2327,15 +2229,15 @@ NEUTRAL & BURNT WIZARD STYLES
                   
                 } else {
                   // Not found - let user continue
-                  searchStatus.innerHTML = "⚠️ No encontrado en el sistema. Puedes continuar manualmente.";
+                  searchStatus.innerHTML = "";
                   searchStatus.style.color = "var(--text-medium)";
                   foundVolunteerData = null;
                   roleContainer.style.display = "block";
                 }
               } catch (error) {
-                console.warn("Backend search failed:", error);
+                console.warn("Error:", error);
                 hideSpinner();
-                searchStatus.innerHTML = "⚠️ No se pudo conectar al servidor. Continúa manualmente.";
+                searchStatus.innerHTML = "⚠️ No se pudo actualizar tus datos.";
                 searchStatus.style.color = "var(--text-medium)";
                 foundVolunteerData = null;
                 roleContainer.style.display = "block";
@@ -2358,13 +2260,13 @@ NEUTRAL & BURNT WIZARD STYLES
             return;
           }
           if (!identidad || identidad.length !== 6) {
-            alert("❌ Por favor ingresa los 6 dígitos de identidad");
+            alert("❌ Por favor ingresa los ultimos 6 dígitos de tu identidad");
             return;
           }
 
           // Check if profile already exists
           if (registeredProfile && registeredProfile.identidadSuffix === identidad) {
-            alert(`❌ Ya existe un perfil con el código ${identidad}`);
+            alert(`❌ Ya existe un app registrado con tu perfil: ${identidad}`);
             return;
           }
 
@@ -2391,28 +2293,25 @@ NEUTRAL & BURNT WIZARD STYLES
           const finalStatus = statusSelect.value;
 
           const newProfile = {
-            id: `Voluntario-${Date.now()}-${identidad}`,
+            id: `${Date.now()}-${identidad}`,
             name: name,
             identidadSuffix: identidad,
             rolNombre: rolNombre,
             rolId: rolId,
             status: finalStatus,
           };
-
+          //set current user of app
           registeredProfile = newProfile;
-          saveProfiles();
+          updateAndSave();
           renderRegisteredProfile();
           updateActivevoluntariosChart();
-
-          // Set as current user
-          currentUser = registeredProfile;
 
           // Save to localStorage
           const monthKey = getCurrentMonthKey();
           localStorage.setItem(`registeredProfile_${monthKey}`, JSON.stringify(registeredProfile));
-          localStorage.setItem(`currentUser_${monthKey}`, currentUser.id);
+          localStorage.setItem(`registeredProfile _${monthKey}`, registeredProfile.id);
 
-          alert(`✅ Perfil creado: ${name}\n🎭 Rol: ${rolNombre}\n🆔 ID: ${identidad}\n📊 Estado: ${finalStatus}`);
+          alert(`Datos Importantes: ${name}\n Cargo: ${rolNombre}\n🆔 ID: ${identidad}\n📊 Estado: ${finalStatus} Si estos datos son incorrectos, borra los datos del navigador y desinstalla el app.`);
 
           modal.remove();
         };
@@ -2607,6 +2506,175 @@ NEUTRAL & BURNT WIZARD STYLES
           const dateB = new Date(b.date);
           return dateA - dateB;
         });
+      }
+
+      // ==========================================
+      // STORAGE
+      // ==========================================
+      // ==========================================
+      // LOAD FUNCTION - Reads from storage and backend
+      // ==========================================
+      async function unifiedLoad() {
+        const monthKey = getCurrentMonthKey();
+
+        // Initialize profile system first (sets registeredProfile)
+        if (typeof initProfileSystem === "function") {
+          initProfileSystem();
+        }
+
+        // Load activities for the registered user
+        let loadedActivities = [];
+
+        if (registeredProfile && registeredProfile.identidadSuffix) {
+          console.log(`📡 Fetching activities for user: ${registeredProfile.identidadSuffix} for month ${monthKey}`);
+
+          try {
+            const response = await fetch(
+              `https://api.contranormdigital.com/api/tecno-civico/volunteers/report/individual/${registeredProfile.identidadSuffix}?month=${monthKey}`
+            );
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data && result.data.activities) {
+                loadedActivities = result.data.activities;
+                console.log(`✅ Fetched ${loadedActivities.length} activities for registered user`);
+                
+                // Save to localStorage immediately
+                localStorage.setItem(`activities_${monthKey}`, JSON.stringify(loadedActivities));
+                localStorage.setItem("activities_backup", JSON.stringify(loadedActivities));
+              } else {
+                throw new Error("Invalid response structure");
+              }
+            } else {
+              throw new Error(`HTTP ${response.status}`);
+            }
+          } catch (error) {
+            console.warn("⚠️ Backend fetch failed, falling back to localStorage:", error.message);
+            const savedActivities = localStorage.getItem(`activities_${monthKey}`);
+            if (savedActivities) {
+              loadedActivities = JSON.parse(savedActivities);
+              console.log(`📦 Loaded ${loadedActivities.length} user activities from localStorage`);
+            } else {
+              loadedActivities = [];
+            }
+          }
+        } else {
+          const savedActivities = localStorage.getItem(`activities_${monthKey}`);
+          if (savedActivities) {
+            loadedActivities = JSON.parse(savedActivities);
+            console.log(`📦 Loaded ${loadedActivities.length} user activities from localStorage`);
+          } else {
+            loadedActivities = [];
+          }
+        }
+
+        activities = loadedActivities;
+        allActivities = loadedActivities;
+
+        if (typeof sortActivitiesByDate === "function") {
+          sortActivitiesByDate();
+        }
+
+        // Load description fields
+        const savedDesc = localStorage.getItem(`desc_${monthKey}`);
+        if (savedDesc) {
+          try {
+            const desc = JSON.parse(savedDesc);
+            if (document.getElementById("scopeText"))
+              document.getElementById("scopeText").value = desc.scope || "";
+            if (document.getElementById("difficultiesText"))
+              document.getElementById("difficultiesText").value = desc.difficulties || "";
+            if (document.getElementById("recommendationsText"))
+              document.getElementById("recommendationsText").value = desc.recommendations || "";
+            if (document.getElementById("impactText"))
+              document.getElementById("impactText").value = desc.impact || "";
+          } catch (e) {}
+        }
+
+        // Restore wizard state if exists
+        const savedWizard = localStorage.getItem("wizardFullState");
+        if (savedWizard) {
+          try {
+            const wizardState = JSON.parse(savedWizard);
+            wizardStep = wizardState.step || 1;
+            wizardData = wizardState.data || {};
+            timerMode = wizardState.timerMode || "manual";
+            wizardTimerElapsedMs = wizardState.elapsedMs || 0;
+            console.log(`🔄 Restored wizard state from step ${wizardStep}`);
+          } catch (e) {}
+        }
+
+        // Render everything
+        if (typeof renderActivities === "function") renderActivities();
+        if (typeof renderRegisteredProfile === "function") renderRegisteredProfile();
+        if (typeof updateCharts === "function") await updateCharts();
+        if (typeof updateGlobalKPIs === "function") updateGlobalKPIs();
+      }
+
+      // ==========================================
+      // SAVE FUNCTION - Writes to storage
+      // ==========================================
+      function updateAndSave() {
+       
+
+        // Save activities (user's own activities)
+        if (typeof activities !== "undefined" && activities !== null) {
+          localStorage.setItem(`activities_${monthKey}`, JSON.stringify(activities));
+        }
+
+        // Save allActivities (organizational data from backend)
+        if (typeof allActivities !== "undefined" && allActivities !== null) {
+          localStorage.setItem(`allActivities_${monthKey}`, JSON.stringify(allActivities));
+        }
+
+        // Save registered profile (required for app to work)
+        if (registeredProfile !== null && typeof registeredProfile === "object") {
+          localStorage.setItem(`registeredProfile_${monthKey}`, JSON.stringify(registeredProfile));
+        } else {
+          // No profile registered - clear any existing
+          localStorage.removeItem(`registeredProfile_${monthKey}`);
+        }
+
+        // Save description fields
+        const desc = {
+          scope: document.getElementById("scopeText")?.value || "",
+          difficulties: document.getElementById("difficultiesText")?.value || "",
+          recommendations: document.getElementById("recommendationsText")?.value || "",
+          impact: document.getElementById("impactText")?.value || "",
+        };
+        localStorage.setItem(`desc_${monthKey}`, JSON.stringify(desc));
+
+        // Save wizard state separately (preserves progress)
+        if (activeWizard && wizardData && Object.keys(wizardData).length > 0) {
+          const wizardState = {
+            step: wizardStep,
+            data: wizardData,
+            timerMode: timerMode,
+            elapsedMs: wizardTimerElapsedMs,
+            timestamp: Date.now()
+          };
+          localStorage.setItem("wizardFullState", JSON.stringify(wizardState));
+        }
+
+        // Save backups for recovery
+        localStorage.setItem("activities_backup", JSON.stringify(activities || []));
+        if (allActivities) {
+          localStorage.setItem("allActivities_backup", JSON.stringify(allActivities));
+        }
+        if (registeredProfile) {
+          localStorage.setItem("profile_backup", JSON.stringify(registeredProfile));
+        }
+
+        console.log("✅ [UPDATE_SAVE] Data saved at", new Date().toLocaleTimeString());
+      }
+
+      // Debounced version for rapid calls (like text input)
+      let saveTimeout = null;
+      function debouncedUpdateAndSave() {
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+          updateAndSave();
+          saveTimeout = null;
+        }, 500);
       }
       // ==========================================
       // ENHANCED TIMER SYSTEM WITH DUAL MODE
@@ -2964,9 +3032,7 @@ NEUTRAL & BURNT WIZARD STYLES
         }
       }
 
-      // ==========================================
-      // STORAGE
-      // ==========================================
+      
 
       // ==========================================
       // COMPLETE WIZARD SYSTEM
@@ -3118,6 +3184,7 @@ NEUTRAL & BURNT WIZARD STYLES
           return null;
         }
       }
+      
       // ==========================================
       // PROFILE SYSTEM (Complete replacement for voluntariosActivos)
       // ==========================================
@@ -3130,26 +3197,26 @@ NEUTRAL & BURNT WIZARD STYLES
         if (savedProfile) {
           try {
             registeredProfile = JSON.parse(savedProfile);
-            currentUser = registeredProfile;
+            registeredProfile  = registeredProfile;
             console.log(`✅ Loaded registered profile: ${registeredProfile?.nombre}`);
           } catch (e) {
             registeredProfile = null;
-            currentUser = null;
+            registeredProfile  = null;
           }
         } else {
           const backupProfile = localStorage.getItem("profile_backup");
           if (backupProfile) {
             try {
               registeredProfile = JSON.parse(backupProfile);
-              currentUser = registeredProfile;
+              registeredProfile = registeredProfile;
               console.log(`⚠️ Loaded from backup`);
             } catch (e) {
               registeredProfile = null;
-              currentUser = null;
+              registeredProfile = null;
             }
           } else {
             registeredProfile = null;
-            currentUser = null;
+            registeredProfile = null;
           }
         }
         
@@ -3174,7 +3241,7 @@ NEUTRAL & BURNT WIZARD STYLES
           setTimeout(() => {
             if (!registeredProfile) {
               const wantsToCreate = confirm(
-                "👋 ¡Bienvenido al sistema!\n\nNo hay perfil creado aún.\n\n¿Deseas crear tu perfil de voluntaria ahora?\n\n(Necesitarás tus últimos 6 dígitos de identidad)"
+                "¡Bienvenido al sistema!\n\nNo hay perfil creado aún.\n\n¿Deseas crear tu perfil de voluntaria ahora?\n\n(Necesitarás tus últimos 6 dígitos de identidad)"
               );
               if (wantsToCreate) {
                 showAddVolunteerModal();
@@ -3209,15 +3276,15 @@ NEUTRAL & BURNT WIZARD STYLES
         
         if (!suffixDisplay || !roleDisplay || !container) return;
         
-        if (!currentUser || !registeredProfile) {
+        if (!registeredProfile  || !registeredProfile) {
           container.style.display = "none";
           return;
         }
         
         // Display existing profile (no prompts, no checks)
         container.style.display = "block";
-        suffixDisplay.textContent = currentUser.identidadSuffix || "---";
-        roleDisplay.textContent = currentUser.rolNombre;
+        suffixDisplay.textContent = registeredProfile.identidadSuffix || "000000";
+        roleDisplay.textContent = registeredProfile.rolNombre;
       }
       
 
@@ -3254,22 +3321,76 @@ NEUTRAL & BURNT WIZARD STYLES
       }
 
       function showManagevoluntarios() {
-        if (!currentUser) {
-          alert("❌ No hay un usuario seleccionado");
+        if (!registeredProfile) {
+          alert("❌ Sin registros del usuario.");
           return;
         }
 
-        const choice = confirm(
-          `📋 ${currentUser.name} - Selecciona el tipo de reporte:\n\n` +
-            `✅ Aceptar → Reporte CONSOLIDADO (incluye hours que otros reportaron sobre ti)\n` +
-            `❌ Cancelar → Reporte LOCAL (solo las actividades que reportaste tú mismo)`,
-        );
+        // Create custom modal
+        const modal = document.createElement("div");
+        modal.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0,0,0,0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+        `;
 
-        if (choice) {
-          exportUserReport(currentUser);
-        } else {
-          generateLocalUserReport(currentUser);
-        }
+        modal.innerHTML = `
+          <div style="background: white; border-radius: 24px; padding: 24px; width: 90%; max-width: 400px;">
+            <h3 style="margin: 0 0 16px 0; color: var(--primary);">Selecciona el tipo de reporte</h3>
+            <p style="margin-bottom: 20px; color: var(--text-dark);"><strong>${registeredProfile.name}</strong></p>
+            
+            <button id="consolidadoBtn" style="width: 100%; padding: 14px; background: var(--success, #2e7d32); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; margin-bottom: 12px;">
+              📊 INFORME CONSOLIDADO
+            </button>
+            <p style="font-size: 0.7rem; color: var(--text-medium); margin-bottom: 20px; text-align: center;">
+              Incluye todas las horas reportadas sobre ti (por ti y por otros voluntarios)
+            </p>
+            
+            <button id="personalBtn" style="width: 100%; padding: 14px; background: var(--accent, #E34A2F); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; margin-bottom: 12px;">
+              📝 INFORME PERSONAL
+            </button>
+            <p style="font-size: 0.7rem; color: var(--text-medium); margin-bottom: 20px; text-align: center;">
+              Solo las horas que tú reportaste directamente (tus propias actividades)
+            </p>
+            
+            <button id="cancelBtn" style="width: 100%; padding: 12px; background: var(--neutral-light); color: var(--text-dark); border: 1px solid var(--neutral-border); border-radius: 12px; cursor: pointer;">
+              Cancelar
+            </button>
+          </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const consolidadoBtn = modal.querySelector("#consolidadoBtn");
+        const personalBtn = modal.querySelector("#personalBtn");
+        const cancelBtn = modal.querySelector("#cancelBtn");
+
+        consolidadoBtn.onclick = () => {
+          modal.remove();
+          exportUserReport(registeredProfile);
+        };
+
+        personalBtn.onclick = () => {
+          modal.remove();
+          generateLocalUserReport(registeredProfile);
+        };
+
+        cancelBtn.onclick = () => {
+          modal.remove();
+        };
+
+        modal.onclick = (e) => {
+          if (e.target === modal) {
+            modal.remove();
+          }
+        };
       }
 
       function renderParticipants(participants) {
@@ -3277,7 +3398,7 @@ NEUTRAL & BURNT WIZARD STYLES
 
         return `
     <div class="detailed-participants" style="padding: 12px; background: var(--neutral-light); border-radius: 16px;">
-        <div class="question-label" style="font-size: 0.7rem; margin-bottom: 8px;">📋 Datos de las voluntarios Participantes (${participants.length} voluntarios)</div>
+        <div class="question-label" style="font-size: 0.7rem; margin-bottom: 8px;">Datos de las voluntarios Participantes (${participants.length} voluntarios)</div>
         <div id="participantCountList" class="participants-list">
             ${participants
               .map(
@@ -3447,29 +3568,7 @@ NEUTRAL & BURNT WIZARD STYLES
         console.log("✅ Wizard closed");
       }
 
-      function clearWizardStateOnUserChange() {
-        // Clear all wizard-related localStorage
-        localStorage.removeItem("wizardFullState");
-        localStorage.removeItem("wizardTimerState");
-
-        // Reset global wizard variables
-        wizardStep = 1;
-        wizardData = {};
-        wizardCompleted = false;
-        wizardSubmitting = false;
-        wizardTimerElapsedMs = 0;
-        wizardTimerStart = null;
-        timerMode = "manual";
-
-        // Clear timer if running
-        if (wizardTimerInterval) {
-          clearInterval(wizardTimerInterval);
-          wizardTimerInterval = null;
-        }
-
-        console.log("✅ Wizard state cleared for user change");
-      }
-
+      
       function saveCurrentStepData() {
         switch (wizardStep) {
           case 1:
@@ -5009,7 +5108,7 @@ NEUTRAL & BURNT WIZARD STYLES
       }
 
       function renderActivities() {
-        saveData();
+        updateAndSave();
         // Inject print styles if not already present
         if (!document.getElementById("print-gps-styles")) {
           const style = document.createElement("style");
@@ -5267,7 +5366,7 @@ NEUTRAL & BURNT WIZARD STYLES
         }
       }
       async function wizardGoNext() {
-        saveData();
+        updateAndSave();
 
         if (wizardSubmitting) {
           return;
@@ -5297,10 +5396,10 @@ NEUTRAL & BURNT WIZARD STYLES
           const participantsWithIds = [];
 
           participantsWithIds.push({
-            name: currentUser?.name || "",
-            gender: currentUser?.gender || "Femenino",
-            identidadSuffix: currentUser?.identidadSuffix || "",
-            profileId: currentUser?.id || null,
+            name: registeredProfile?.name || "",
+            gender: registeredProfile?.gender || "Femenino",
+            identidadSuffix: registeredProfile?.identidadSuffix || "",
+            profileId: registeredProfile?.id || null,
             isCurrentUser: true,
           });
 
@@ -5341,8 +5440,8 @@ NEUTRAL & BURNT WIZARD STYLES
             startTime: wizardData.startTime || "",
             endTime: wizardData.endTime || "",
             participantCount: participantsWithIds,
-            reportedBy: currentUser ? currentUser.identidadSuffix : null,
-            reportedByName: currentUser ? currentUser.name : "Usuario",
+            reportedBy: registeredProfile ? registeredProfile.identidadSuffix : "" ,
+            reportedByName: registeredProfile ? registeredProfile.name : "appUserNoRegistrado",
             synced: false,
             createdAt: Date.now(),
           };
@@ -5375,13 +5474,13 @@ NEUTRAL & BURNT WIZARD STYLES
               "activities_backup",
               JSON.stringify(activities),
             );
-
-            if (typeof unifiedSave === "function") {
+            closeGlobalWizard();
+            if (typeof updateAndSave === "function") {
               try {
-                unifiedSave();
+                updateAndSave();
               } catch (e) {}
             }
-
+            
             window.activities = activities;
 
             if (typeof renderActivities === "function") {
@@ -5394,7 +5493,7 @@ NEUTRAL & BURNT WIZARD STYLES
               updateGlobalKPIs();
             }
 
-            closeGlobalWizard();
+            
           } catch (localError) {
             hideWizardLoading();
             alert("Error guardando localmente: " + localError.message);
@@ -6226,7 +6325,7 @@ NEUTRAL & BURNT WIZARD STYLES
         if (confirm("Borrar todo?")) {
           activities = [];
           voluntariosActivos = [];
-          unifiedSave();
+          updateAndSave();
          
           renderActivities();
           updateCharts();
@@ -6277,25 +6376,25 @@ NEUTRAL & BURNT WIZARD STYLES
         .getElementById("scopeText")
         .addEventListener("input", function () {
           updateCharCounts();
-          unifiedSave();
+          updateAndSave();
         });
       document
         .getElementById("difficultiesText")
         .addEventListener("input", function () {
           updateCharCounts();
-          unifiedSave();
+          updateAndSave();
         });
       document
         .getElementById("recommendationsText")
         .addEventListener("input", function () {
           updateCharCounts();
-          unifiedSave();
+          updateAndSave();
         });
       document
         .getElementById("impactText")
         .addEventListener("input", function () {
           updateCharCounts();
-          unifiedSave();
+          updateAndSave();
         });
 
       // ==========================================
@@ -6314,7 +6413,7 @@ NEUTRAL & BURNT WIZARD STYLES
       // --- AUTO-SAVE PATCH ---
       document.querySelectorAll("textarea").forEach((textarea) => {
         textarea.addEventListener("input", () => {
-          if (typeof unifiedSave === "function") unifiedSave();
+          if (typeof updateAndSave === "function") updateAndSave();
         });
       });
 
@@ -6416,120 +6515,9 @@ NEUTRAL & BURNT WIZARD STYLES
         window.addEventListener("offline", updateOnlineStatus);
         updateOnlineStatus();
       });
-      // ==========================================
-      // UNIFIED STORAGE SYSTEM - FIXED VERSION
-      // ==========================================
-
-      // Single source of truth for storage
-      function unifiedSave() {
-        const monthKey = getCurrentMonthKey();
-
-        // Save activities (with validation)
-        if (typeof activities !== "undefined" && activities !== null) {
-          localStorage.setItem(
-            `activities_${monthKey}`,
-            JSON.stringify(activities),
-          );
-        }
-
-        // Save profiles with recalculated hours
-        if (
-          typeof registeredProfile !== "undefined" &&
-          registeredProfile !== null
-        ) {
-          // Recalculate hours before saving (ensure consistency)
-          registeredProfile.forEach((profile) => {
-            if (typeof activities !== "undefined" && activities) {
-              let total = 0;
-              let count = 0;
-              activities.forEach((activity) => {
-                if (activity.reportedBy === profile.id) {
-                  total += activity.hours || 0;
-                  count++;
-                } else if (
-                  activity.participantCount &&
-                  activity.participantCount.length > 0
-                ) {
-                  const matched = activity.participantCount.some(
-                    (p) =>
-                      p.identidadSuffix &&
-                      normalizeName(p.identidadSuffix) ===
-                        normalizeName(profile.identidadSuffix),
-                  );
-                  if (matched) {
-                    total += activity.hours || 0;
-                    count++;
-                  }
-                } else if (
-                  profile.isPlaceholder &&
-                  activity.voluntarias === 1 &&
-                  !activity.participantCount?.length
-                ) {
-                  total += activity.hours || 0;
-                  count++;
-                }
-              });
-              profile.totalhours = total;
-              profile.actividadesCount = count;
-            }
-          });
-          localStorage.setItem(
-            `registeredProfile_${monthKey}`,
-            JSON.stringify(registeredProfile),
-          );
-        }
-
-        // Save description fields
-        const desc = {
-          scope: document.getElementById("scopeText")?.value || "",
-          difficulties:
-            document.getElementById("difficultiesText")?.value || "",
-          recommendations:
-            document.getElementById("recommendationsText")?.value || "",
-          impact: document.getElementById("impactText")?.value || "",
-        };
-        localStorage.setItem(`desc_${monthKey}`, JSON.stringify(desc));
-
-        // Save current user
-        if (typeof currentUser !== "undefined" && currentUser) {
-          localStorage.setItem(`currentUser_${monthKey}`, currentUser.id);
-        }
-
-        // Save backup for recovery
-        localStorage.setItem(
-          "activities_backup",
-          JSON.stringify(activities || []),
-        );
-        localStorage.setItem(
-          "profiles_backup",
-          JSON.stringify(registeredProfile || []),
-        );
-
-        console.log(
-          "✅ [UNIFIED] Data saved at",
-          new Date().toLocaleTimeString(),
-        );
-      }
+      
 
       
-      // Debounced save (prevents excessive writes)
-      let saveTimeout = null;
-      function debouncedSave() {
-        if (saveTimeout) clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(() => {
-          unifiedSave();
-          saveTimeout = null;
-        }, 500);
-      }
-
-      // Override all existing save functions to use unified system
-
-      function saveProfiles() {
-        debouncedSave();
-      }
-      function saveData() {
-        debouncedSave();
-      }
       function saveWizardState() {
         // Only save wizard state separately
         const wizardState = {
@@ -6546,16 +6534,16 @@ NEUTRAL & BURNT WIZARD STYLES
       // ==========================================
 
       // Helper function to check if current user participated in an activity
-      function isCurrentUserInActivity(activity, currentUser) {
-        if (!currentUser || !currentUser.identidadSuffix) return false;
+      function isCurrentUserInActivity(activity, registeredProfile ) {
+        if (!registeredProfile || !registeredProfile.identidadSuffix) return false;
 
         // Check if current user is the creator
-        if (activity.reportedBy === currentUser.id) return true;
+        if (activity.reportedBy === registeredProfile.id) return true;
 
         // Check if creator ID contains the suffix
         if (
           activity.reportedBy &&
-          activity.reportedBy.includes(currentUser.identidadSuffix)
+          activity.reportedBy.includes(registeredProfile.identidadSuffix)
         )
           return true;
 
@@ -6567,14 +6555,14 @@ NEUTRAL & BURNT WIZARD STYLES
           return activity.participantCount.some((p) => {
             if (
               p.identidadSuffix &&
-              p.identidadSuffix === currentUser.identidadSuffix
+              p.identidadSuffix === registeredProfile.identidadSuffix
             )
               return true;
-            if (p.profileId && p.profileId === currentUser.id) return true;
+            if (p.profileId && p.profileId === registeredProfile.id) return true;
             if (
               p.name &&
-              currentUser.name &&
-              p.name.toLowerCase() === currentUser.name.toLowerCase()
+              registeredProfile .name &&
+              p.name.toLowerCase() === registeredProfile .name.toLowerCase()
             )
               return true;
             return false;
@@ -6588,7 +6576,7 @@ NEUTRAL & BURNT WIZARD STYLES
       // GLOBAL FUNCTION - define once, call anywhere
       // ==========================================
       function updateGlobalKPIs() {
-        const userSuffix = currentUser?.identidadSuffix;
+        const userSuffix = registeredProfile ?.identidadSuffix;
 
         // VOLUNTARIOS ACTIVOS - from dashboard (group data for current month)
         const totalVoluntariosActivosEl = document.getElementById(
@@ -6716,12 +6704,12 @@ NEUTRAL & BURNT WIZARD STYLES
 
       // Save before page unload
       window.addEventListener("beforeunload", () => {
-        unifiedSave();
+        updateAndSave();
       });
 
       // Save periodically (every 30 seconds)
       setInterval(() => {
-        unifiedSave();
+        updateAndSave();
       }, 30000);
 
       //============================
@@ -7284,8 +7272,8 @@ NEUTRAL & BURNT WIZARD STYLES
           "Tesorero",
         ];
         const userRole =
-          typeof currentUser !== "undefined" && currentUser
-            ? currentUser.rolNombre
+          typeof registeredProfile  !== "undefined" && registeredProfile 
+            ? registeredProfile.rolNombre
             : "";
 
         if (!allowedRoles.includes(userRole)) {
@@ -7302,7 +7290,7 @@ NEUTRAL & BURNT WIZARD STYLES
 
         try {
           const response = await fetch(
-            `https://api.contranormdigital.com/api/tecno-civico/volunteers/consolidated/informe-tecnico/${currentUser.identidadSuffix}`,
+            `https://api.contranormdigital.com/api/tecno-civico/volunteers/consolidated/informe-tecnico/${registeredProfile.identidadSuffix}`,
           );
 
           if (!response.ok) {
@@ -7344,8 +7332,8 @@ NEUTRAL & BURNT WIZARD STYLES
             document.getElementById("recommendationsText")?.value || "";
           const impactText = document.getElementById("impactText")?.value || "";
 
-          const generatedBy = currentUser
-            ? `${currentUser.name} (${currentUser.rolNombre})`
+          const generatedBy = registeredProfile 
+            ? `${registeredProfile.name} (${registeredProfile.rolNombre})`
             : "Usuario del sistema";
           const hondurasDateTime =
             reportData.generatedAt || formatDateForDisplay(now, true);
