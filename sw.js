@@ -1,5 +1,5 @@
 // sw.js - Service Worker for offline support with external CDNs
-const CACHE_NAME = 'Informe-Tecnico-v2.1.14'; // 🔥 CHANGE THIS on every deploy
+const CACHE_NAME = 'Informe-Tecnico-v2.1.22'; // 🔥 CHANGE THIS on every deploy
 
 const urlsToCache = [
     './',
@@ -43,6 +43,13 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
     const url = event.request.url;
+    
+    // 🔥 NEW: EXCLUDE monthly-report.pdf from service worker handling
+    if (url.includes('monthly-report.pdf')) {
+        // Bypass service worker completely - go straight to network
+        event.respondWith(fetch(event.request));
+        return;
+    }
     
     // Handle Google Fonts specially (they have CORS headers)
     if (url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com')) {
