@@ -1965,7 +1965,7 @@ NEUTRAL & BURNT WIZARD STYLES
       // ==========================================
       // GLOBAL STATE
       // ==========================================
-      const APP_VERSION = "Informe-Tecnico-v2.1.14";
+      const APP_VERSION = "Informe-Tecnico-v2.1.22";
       let DashboardData = null;
       let allActivities = [];
       let activities = [];
@@ -6879,9 +6879,24 @@ NEUTRAL & BURNT WIZARD STYLES
         // Fetch the PDF template
         const pdfUrl = "https://tecno-civico.org/monthly-report.pdf";
         const pdfResponse = await fetch(pdfUrl);
+        
+        // 🔥 NEW: Validate we actually got a PDF
+        const contentType = pdfResponse.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/pdf')) {
+            console.error('❌ Invalid response for PDF:');
+            console.error('  Status:', pdfResponse.status);
+            console.error('  Content-Type:', contentType);
+            console.error('  Response preview:', await pdfResponse.text().slice(0, 200));
+            throw new Error('El servidor no devolvió un PDF válido. Por favor, intenta de nuevo.');
+        }
+        
+        // Optional: Check content length (PDFs should be > 1KB)
+        const contentLength = pdfResponse.headers.get('content-length');
+        if (contentLength && parseInt(contentLength) < 1024) {
+            throw new Error(`El PDF parece estar vacío o corrupto (tamaño: ${contentLength} bytes)`);
+        }
+        
         const pdfArrayBuffer = await pdfResponse.arrayBuffer();
-
-        // Load the PDF document
         const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
         const form = pdfDoc.getForm();
 
